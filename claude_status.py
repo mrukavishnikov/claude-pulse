@@ -116,10 +116,11 @@ def detect_activity():
 
 
 def rainbow_colorize(text, color_all=True, is_active=False):
-    """Apply animated rainbow with two modes.
+    """Apply animated rainbow colouring.
 
-    Active/thinking — fast colour drift + rapid 3-second shimmer.
-    Idle            — nearly static colours + soft 10-second white glimmer.
+    Active/thinking — fast colour drift + white shimmer sweeping across.
+    Idle            — pure rainbow colours, no shimmer (status line doesn't
+                      refresh when idle so shimmer would freeze in place).
 
     color_all=True  — strip existing ANSI, rainbow every character (bars + text).
     color_all=False — preserve existing ANSI-colored chars (bars), only rainbow
@@ -127,7 +128,21 @@ def rainbow_colorize(text, color_all=True, is_active=False):
     """
     now = time.time()
 
-    # Count visible characters (skip ANSI escapes) for highlight math
+    # Animation parameters
+    if is_active:
+        hue_drift = now * 0.15          # fast colour shifting
+        cycle = 3.0                     # rapid shimmer sweep
+        highlight_width = 5
+        shimmer_desat = 0.75            # strong white flash
+        shimmer_val_boost = 0.05
+    else:
+        hue_drift = now * 0.02          # slow drift for slight variation between renders
+        cycle = 0                       # no shimmer — would freeze as a white blob
+        highlight_width = 0
+        shimmer_desat = 0
+        shimmer_val_boost = 0
+
+    # Count visible characters (skip ANSI escapes)
     visible_count = 0
     idx = 0
     while idx < len(text):
@@ -142,25 +157,15 @@ def rainbow_colorize(text, color_all=True, is_active=False):
     if visible_count == 0:
         return text
 
-    # Animation parameters — active vs idle
-    if is_active:
-        hue_drift = now * 0.15          # fast colour shifting
-        cycle = 3.0                     # rapid shimmer
-        highlight_width = 5
-        shimmer_desat = 0.75            # strong white flash
-        shimmer_val_boost = 0.05
+    # Shimmer highlight position (only meaningful when active)
+    if cycle > 0:
+        highlight_center = (now % cycle) / cycle * (visible_count + highlight_width * 2) - highlight_width
     else:
-        hue_drift = now * 0.02          # barely perceptible drift
-        cycle = 10.0                    # slow, calm glimmer
-        highlight_width = 6             # focused enough to be clearly visible
-        shimmer_desat = 0.95            # near-white at center for obvious effect
-        shimmer_val_boost = 0.10        # brighter peak
-
-    highlight_center = (now % cycle) / cycle * (visible_count + highlight_width * 2) - highlight_width
+        highlight_center = -9999  # off-screen — no shimmer
 
     result = []
     visible_idx = 0
-    has_existing_color = False  # tracks ANSI color state for color_all=False
+    has_existing_color = False
     i = 0
 
     while i < len(text):
@@ -172,11 +177,9 @@ def rainbow_colorize(text, color_all=True, is_active=False):
             seq = text[i : j + 1]
 
             if color_all:
-                # Strip all existing ANSI — we'll re-color everything
                 i = j + 1
                 continue
             else:
-                # Preserve existing ANSI; track color state
                 if seq == "\033[0m":
                     has_existing_color = False
                 else:
@@ -187,18 +190,13 @@ def rainbow_colorize(text, color_all=True, is_active=False):
 
         # Visible character
         if not color_all and has_existing_color:
-            # Already styled by the bar — pass through unchanged
             result.append(text[i])
         else:
-            # Apply rainbow
             hue = ((visible_idx * 0.04) + hue_drift) % 1.0
             dist = abs(visible_idx - highlight_center)
 
-            if dist < highlight_width:
-                # Shimmer band — desaturate toward white
+            if is_active and dist < highlight_width:
                 blend = 1.0 - (dist / highlight_width)
-                if not is_active:
-                    blend = blend * blend  # quadratic falloff for softer edge
                 sat = 0.85 * (1.0 - blend * shimmer_desat)
                 val = 0.95 + blend * shimmer_val_boost
             else:
