@@ -1093,6 +1093,35 @@ def cmd_print_config():
             utf8_print(f"  Update:       {GREEN}up to date (v{VERSION}){RESET}")
         else:
             utf8_print(f"  Update:       {DIM}check failed{RESET}")
+    # Extra credits status — check the API
+    utf8_print(f"\n  {BOLD}Extra Credits:{RESET}")
+    try:
+        token, _ = get_credentials()
+        if token:
+            _usage = fetch_usage(token)
+            _extra = _usage.get("extra_usage")
+            if _extra and _extra.get("is_enabled"):
+                currency = config.get("currency", "$")
+                used = _extra.get("used_credits", 0)
+                limit = _extra.get("monthly_limit", 0)
+                pct = min(_extra.get("utilization", 0), 100)
+                utf8_print(f"    Status:    {GREEN}active{RESET}")
+                utf8_print(f"    Used:      {currency}{used:.0f} / {currency}{limit:.0f} ({pct:.0f}%)")
+                if config.get("extra_hidden"):
+                    utf8_print(f"    Display:   {RED}hidden{RESET}  (run {BOLD}--show extra{RESET} to re-enable)")
+                else:
+                    utf8_print(f"    Display:   {GREEN}auto-shown{RESET}  (run {BOLD}--hide extra{RESET} to suppress)")
+            else:
+                utf8_print(f"    Status:    {DIM}not active{RESET}")
+                if show.get("extra", False):
+                    utf8_print(f"    Display:   {GREEN}on{RESET} (forced)  — will show 'none' until credits are gifted")
+                else:
+                    utf8_print(f"    Display:   {DIM}auto{RESET} — will appear when credits are gifted")
+        else:
+            utf8_print(f"    Status:    {DIM}unknown{RESET} (no credentials)")
+    except Exception:
+        utf8_print(f"    Status:    {DIM}check failed{RESET}")
+
     utf8_print(f"\n  {BOLD}Visibility:{RESET}")
     show = config.get("show", DEFAULT_SHOW)
     for key in DEFAULT_SHOW:
