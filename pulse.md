@@ -20,7 +20,8 @@ If $ARGUMENTS is exactly `show` (no parts after it), or `show all`, or `colors`,
 -> Run TWO separate Bash commands (in parallel) so the output is NOT collapsed behind ctrl+o:
    1. `python "[REPLACE_WITH_YOUR_PATH]/claude_status.py" --show-themes`
    2. `python "[REPLACE_WITH_YOUR_PATH]/claude_status.py" --show-colors`
--> IMPORTANT: Show the raw command output DIRECTLY to the user. Do NOT summarise, reformat, or create tables. The commands output coloured ANSI text with live theme previews — the user needs to see the actual coloured bars, not a markdown description of them. Just run the commands and let the output speak for itself. Do not add any commentary.
+-> IMPORTANT: Show the raw command output DIRECTLY to the user. Do NOT summarise, reformat, or create tables. The commands output coloured ANSI text with live theme previews — the user needs to see the actual coloured bars, not a markdown description of them. Just run the commands and let the output speak for itself.
+-> After both commands, say ONLY: "Press **Ctrl+O** to expand and see the colours."
 
 If $ARGUMENTS contains `hide <parts>` or `show <parts>` (with specific parts like extra, timer, etc.):
 -> Run the corresponding `--hide` or `--show` command directly.
