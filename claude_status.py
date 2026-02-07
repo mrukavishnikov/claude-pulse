@@ -804,11 +804,12 @@ def build_status_line(usage, plan, config=None):
             parts.append(f"Weekly {bar} {pct:.0f}%")
 
     # Extra usage (bonus/gifted credits)
-    # Auto-shows when credits are gifted, even if user hasn't explicitly enabled it
+    # Auto-shows when credits are gifted, unless user explicitly hid it
     extra = usage.get("extra_usage")
     extra_enabled_by_user = show.get("extra", False)
+    extra_explicitly_hidden = config.get("extra_hidden", False)
     extra_has_credits = extra and extra.get("is_enabled") and extra.get("monthly_limit", 0) > 0
-    if extra_enabled_by_user or extra_has_credits:
+    if extra_enabled_by_user or (extra_has_credits and not extra_explicitly_hidden):
         currency = config.get("currency", "$")
         if extra and extra.get("is_enabled"):
             pct = min(extra.get("utilization", 0), 100)
@@ -1021,6 +1022,9 @@ def cmd_show(parts_str):
             return
     for part in parts:
         config["show"][part] = True
+        # Clear explicit hide flag so auto-show can work again
+        if part == "extra":
+            config.pop("extra_hidden", None)
     save_config(config)
     print(f"Enabled: {', '.join(parts)}")
 
@@ -1036,6 +1040,9 @@ def cmd_hide(parts_str):
             return
     for part in parts:
         config["show"][part] = False
+        # Mark extra as explicitly hidden so auto-show respects it
+        if part == "extra":
+            config["extra_hidden"] = True
     save_config(config)
     print(f"Disabled: {', '.join(parts)}")
 
