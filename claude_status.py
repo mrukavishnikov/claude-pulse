@@ -94,53 +94,37 @@ def hsv_to_rgb(h, s, v):
     return vi, p, q
 
 
-def detect_activity():
-    """Detect if Claude is actively thinking based on call frequency.
+def rainbow_colorize(text, color_all=True):
+    """Apply animated rainbow colouring with a periodic white shimmer glint.
 
-    The status line is called every ~300ms during generation but less often
-    when idle.  We touch a file each call and check how recently the previous
-    call happened.  Rapid calls (< 1.5 s apart) → active/thinking.
-    """
-    cache_dir = get_cache_path().parent
-    state_path = cache_dir / ".last_render"
-    now = time.time()
-    try:
-        last_time = state_path.stat().st_mtime
-    except (FileNotFoundError, OSError):
-        last_time = 0
-    try:
-        state_path.touch()
-    except OSError:
-        pass
-    return (now - last_time) < 1.5
+    The status line only refreshes during active generation (~300ms frames).
+    When generation stops the last frame freezes on screen.
 
+    Design:
+    - Rainbow colours drift smoothly (hue shifts each frame).
+    - A white shimmer "glint" sweeps across briefly every few seconds,
+      then disappears — like Claude's "Combobulating…" shimmer.
+    - The glint is only visible for ~1s out of every 4s cycle, so when
+      generation stops there's a ~75% chance the frozen frame is pure
+      rainbow with no white artefacts.
 
-def rainbow_colorize(text, color_all=True, is_active=False):
-    """Apply animated rainbow colouring.
-
-    Active/thinking — fast colour drift + white shimmer sweeping across.
-    Idle            — pure rainbow colours, no shimmer (status line doesn't
-                      refresh when idle so shimmer would freeze in place).
-
-    color_all=True  — strip existing ANSI, rainbow every character (bars + text).
-    color_all=False — preserve existing ANSI-colored chars (bars), only rainbow
-                      the uncolored text around them.
+    color_all=True  — strip existing ANSI, rainbow every character.
+    color_all=False — preserve ANSI-colored chars (bars), rainbow the rest.
     """
     now = time.time()
 
-    # Animation parameters
-    if is_active:
-        hue_drift = now * 0.15          # fast colour shifting
-        cycle = 3.0                     # rapid shimmer sweep
-        highlight_width = 5
-        shimmer_desat = 0.75            # strong white flash
-        shimmer_val_boost = 0.05
-    else:
-        hue_drift = now * 0.02          # slow drift for slight variation between renders
-        cycle = 0                       # no shimmer — would freeze as a white blob
-        highlight_width = 0
-        shimmer_desat = 0
-        shimmer_val_boost = 0
+    # Rainbow hue drift — shifts the colour gradient each frame
+    hue_drift = now * 0.12
+
+    # Shimmer timing — glint visible for 1.0s out of every 4.0s
+    CYCLE = 4.0            # total cycle length
+    GLINT_DURATION = 1.0   # how long the glint is visible
+    HIGHLIGHT_WIDTH = 8    # chars wide — wider = smoother at low FPS
+    SHIMMER_DESAT = 0.80   # how white the center gets (0=none, 1=pure white)
+    SHIMMER_VAL = 0.08     # extra brightness at center
+
+    phase = now % CYCLE
+    glint_active = phase >= (CYCLE - GLINT_DURATION)
 
     # Count visible characters (skip ANSI escapes)
     visible_count = 0
@@ -157,11 +141,13 @@ def rainbow_colorize(text, color_all=True, is_active=False):
     if visible_count == 0:
         return text
 
-    # Shimmer highlight position (only meaningful when active)
-    if cycle > 0:
-        highlight_center = (now % cycle) / cycle * (visible_count + highlight_width * 2) - highlight_width
+    # Shimmer position — sweeps across during the glint window
+    if glint_active:
+        sweep = (phase - (CYCLE - GLINT_DURATION)) / GLINT_DURATION  # 0.0 → 1.0
+        total_range = visible_count + HIGHLIGHT_WIDTH * 2
+        highlight_center = sweep * total_range - HIGHLIGHT_WIDTH
     else:
-        highlight_center = -9999  # off-screen — no shimmer
+        highlight_center = -9999  # off-screen
 
     result = []
     visible_idx = 0
@@ -195,10 +181,12 @@ def rainbow_colorize(text, color_all=True, is_active=False):
             hue = ((visible_idx * 0.04) + hue_drift) % 1.0
             dist = abs(visible_idx - highlight_center)
 
-            if is_active and dist < highlight_width:
-                blend = 1.0 - (dist / highlight_width)
-                sat = 0.85 * (1.0 - blend * shimmer_desat)
-                val = 0.95 + blend * shimmer_val_boost
+            if glint_active and dist < HIGHLIGHT_WIDTH:
+                # White shimmer — quadratic falloff for soft edges
+                blend = 1.0 - (dist / HIGHLIGHT_WIDTH)
+                blend = blend * blend
+                sat = 0.85 * (1.0 - blend * SHIMMER_DESAT)
+                val = 0.95 + blend * SHIMMER_VAL
             else:
                 sat = 0.85
                 val = 0.95
@@ -444,8 +432,7 @@ def build_status_line(usage, plan, config=None):
     line = " | ".join(parts)
 
     if is_rainbow:
-        is_active = config.get("_is_active", False)
-        line = rainbow_colorize(line, color_all=rainbow_bars, is_active=is_active)
+        line = rainbow_colorize(line, color_all=rainbow_bars)
 
     return line
 
@@ -674,10 +661,6 @@ def main():
     config = load_config()
     cache_ttl = config.get("cache_ttl_seconds", DEFAULT_CACHE_TTL)
     is_rainbow = config.get("theme") == "rainbow"
-
-    # Detect thinking vs idle for rainbow animation style
-    if is_rainbow:
-        config["_is_active"] = detect_activity()
 
     try:
         sys.stdin.read()
