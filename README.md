@@ -39,15 +39,17 @@ The bars change colour based on your usage level so you can tell at a glance how
 
 ### 5 Built-in Themes
 
-| Theme | Low | Mid | High | Style |
-|-------|-----|-----|------|-------|
-| `default` | Green | Yellow | Red | Classic traffic-light |
-| `ocean` | Cyan | Blue | Magenta | Cool tones |
-| `sunset` | Yellow | Orange | Red | Warm tones |
-| `mono` | White | White | Bright White | No colour, brightness only |
-| `neon` | Bright Green | Bright Yellow | Bright Red | Vivid/bold |
+| Theme | Preview | Style |
+|-------|---------|-------|
+| `default` | ![](https://img.shields.io/badge/%E2%94%81%E2%94%81%E2%94%81%E2%94%81-2ea043?style=flat-square) ![](https://img.shields.io/badge/%E2%94%81%E2%94%81%E2%94%81%E2%94%81-d29922?style=flat-square) ![](https://img.shields.io/badge/%E2%94%81%E2%94%81%E2%94%81-cf222e?style=flat-square) | Classic traffic-light |
+| `ocean` | ![](https://img.shields.io/badge/%E2%94%81%E2%94%81%E2%94%81%E2%94%81-0891b2?style=flat-square) ![](https://img.shields.io/badge/%E2%94%81%E2%94%81%E2%94%81%E2%94%81-2563eb?style=flat-square) ![](https://img.shields.io/badge/%E2%94%81%E2%94%81%E2%94%81-a855f7?style=flat-square) | Cool tones |
+| `sunset` | ![](https://img.shields.io/badge/%E2%94%81%E2%94%81%E2%94%81%E2%94%81-d29922?style=flat-square) ![](https://img.shields.io/badge/%E2%94%81%E2%94%81%E2%94%81%E2%94%81-ea580c?style=flat-square) ![](https://img.shields.io/badge/%E2%94%81%E2%94%81%E2%94%81-cf222e?style=flat-square) | Warm tones |
+| `mono` | ![](https://img.shields.io/badge/%E2%94%81%E2%94%81%E2%94%81%E2%94%81-6e7681?style=flat-square) ![](https://img.shields.io/badge/%E2%94%81%E2%94%81%E2%94%81%E2%94%81-8b949e?style=flat-square) ![](https://img.shields.io/badge/%E2%94%81%E2%94%81%E2%94%81-c9d1d9?style=flat-square) | Brightness only |
+| `neon` | ![](https://img.shields.io/badge/%E2%94%81%E2%94%81%E2%94%81%E2%94%81-3fb950?style=flat-square) ![](https://img.shields.io/badge/%E2%94%81%E2%94%81%E2%94%81%E2%94%81-f0e040?style=flat-square) ![](https://img.shields.io/badge/%E2%94%81%E2%94%81%E2%94%81-f85149?style=flat-square) | Vivid/bold |
 
-Preview all themes:
+Each preview shows **low** → **mid** → **high** usage colours as they appear on your status bar.
+
+Preview all themes in your terminal:
 ```bash
 python claude_status.py --themes
 ```
