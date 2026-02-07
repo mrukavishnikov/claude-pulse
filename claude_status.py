@@ -4,6 +4,7 @@
 import json
 import math
 import os
+import subprocess
 import sys
 import time
 import urllib.request
@@ -468,6 +469,97 @@ def set_processing(active):
         pass
 
 
+# ---------------------------------------------------------------------------
+# Update checker — compares local git HEAD to GitHub remote (cached 1 hour)
+# ---------------------------------------------------------------------------
+
+UPDATE_CHECK_TTL = 3600  # check at most once per hour
+GITHUB_REPO = "NoobyGains/claude-pulse"
+
+
+def get_local_commit():
+    """Get the local git HEAD commit hash (short). Returns None on failure."""
+    repo_dir = Path(__file__).resolve().parent
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+            cwd=str(repo_dir),
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return None
+
+
+def get_remote_commit():
+    """Fetch the latest commit hash from GitHub API. Returns None on failure."""
+    try:
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/commits/master"
+        req = urllib.request.Request(url, headers={
+            "Accept": "application/vnd.github.sha",
+            "User-Agent": "claude-pulse-update-checker",
+        })
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            return resp.read().decode().strip()
+    except Exception:
+        return None
+
+
+def check_for_update():
+    """Check if a newer version is available on GitHub. Returns True/False/None.
+
+    Cached for 1 hour. Fully silent on any error — never blocks the status line.
+    """
+    state_dir = get_state_dir()
+    update_cache = state_dir / "update_check.json"
+
+    # Read cached result
+    try:
+        with open(update_cache, "r") as f:
+            cached = json.load(f)
+        if time.time() - cached.get("timestamp", 0) < UPDATE_CHECK_TTL:
+            return cached.get("update_available", False)
+    except (FileNotFoundError, json.JSONDecodeError, KeyError):
+        pass
+
+    # Perform the check
+    local = get_local_commit()
+    if not local:
+        return None  # not a git install, skip silently
+
+    remote = get_remote_commit()
+    if not remote:
+        return None  # network error, skip silently
+
+    update_available = local != remote
+
+    # Cache the result
+    try:
+        with open(update_cache, "w") as f:
+            json.dump({
+                "timestamp": time.time(),
+                "update_available": update_available,
+                "local": local[:8],
+                "remote": remote[:8],
+            }, f)
+    except OSError:
+        pass
+
+    return update_available
+
+
+def append_update_indicator(line):
+    """Append a subtle update indicator if a newer version is available."""
+    try:
+        if check_for_update():
+            return line + f" {DIM}\u2191 update{RESET}"
+    except Exception:
+        pass  # never break the status line for an update check
+    return line
+
+
 def read_cache(cache_path, ttl):
     """Return the full cache dict if fresh, else None."""
     try:
@@ -884,6 +976,16 @@ def cmd_print_config():
         processing = is_claude_processing()
         proc_state = f"{GREEN}processing{RESET}" if processing else f"{DIM}idle{RESET}"
         utf8_print(f"  Status:       {proc_state}")
+    # Update check
+    local = get_local_commit()
+    if local:
+        update = check_for_update()
+        if update:
+            utf8_print(f"  Update:       {YELLOW}available{RESET}  (run {BOLD}git pull{RESET} to update)")
+        elif update is False:
+            utf8_print(f"  Update:       {GREEN}up to date{RESET}")
+        else:
+            utf8_print(f"  Update:       {DIM}check failed{RESET}")
     utf8_print(f"\n  {BOLD}Visibility:{RESET}")
     show = config.get("show", DEFAULT_SHOW)
     for key in DEFAULT_SHOW:
@@ -1047,6 +1149,7 @@ def main():
             line = build_status_line(cached["usage"], cached.get("plan", ""), config)
         else:
             line = cached.get("line", "")
+        line = append_update_indicator(line)
         sys.stdout.buffer.write((line + "\n").encode("utf-8"))
         return
 
@@ -1068,6 +1171,7 @@ def main():
         line = "Usage unavailable"
 
     write_cache(cache_path, line, usage, plan)
+    line = append_update_indicator(line)
     sys.stdout.buffer.write((line + "\n").encode("utf-8"))
 
 
