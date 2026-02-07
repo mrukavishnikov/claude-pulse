@@ -1047,14 +1047,12 @@ def cmd_themes_demo():
     utf8_print(f"\n  Set with: python claude_status.py --theme <name>\n")
 
 
-def cmd_show_all():
-    """Show all themes and text colours with visual previews."""
+def cmd_show_themes():
+    """Show all themes with live status line previews."""
     current_config = load_config()
     current_theme = current_config.get("theme", "default")
-    current_tc = current_config.get("text_color", "auto")
     user_bar_size = current_config.get("bar_size", DEFAULT_BAR_SIZE)
 
-    # Themes
     utf8_print(f"\n{BOLD}Themes:{RESET}\n")
     demo_usage = {
         "five_hour": {"utilization": 42, "resets_at": None},
@@ -1065,8 +1063,15 @@ def cmd_show_all():
         line = build_status_line(demo_usage, "Max 20x", demo_config)
         marker = f" {GREEN}<< current{RESET}" if name == current_theme else ""
         utf8_print(f"  {BOLD}{name:<10}{RESET} {line}{marker}")
+    utf8_print("")
 
-    # Text colours
+
+def cmd_show_colors():
+    """Show all text colours with sample text."""
+    current_config = load_config()
+    current_theme = current_config.get("theme", "default")
+    current_tc = current_config.get("text_color", "auto")
+
     utf8_print(f"\n{BOLD}Text colours:{RESET}\n")
     sample = "Session 42% | Weekly 67%"
     for tc_name, tc_code in TEXT_COLORS.items():
@@ -1076,14 +1081,18 @@ def cmd_show_all():
             utf8_print(f"  {tc_name:<14} \033[39m{sample}{RESET}")
         else:
             utf8_print(f"  {tc_name:<14} {tc_code}{sample}{RESET}")
-        # Mark current
     if current_tc == "auto":
         resolved = THEME_TEXT_DEFAULTS.get(current_theme, "white")
         utf8_print(f"\n  Current: {BOLD}auto{RESET} (using {resolved} for {current_theme} theme)")
     else:
         utf8_print(f"\n  Current: {BOLD}{current_tc}{RESET}")
+    utf8_print("")
 
-    utf8_print(f"\n  Set theme: {DIM}--theme <name>{RESET}  |  Set text colour: {DIM}--text-color <name>{RESET}\n")
+
+def cmd_show_all():
+    """Show all themes and text colours with visual previews."""
+    cmd_show_themes()
+    cmd_show_colors()
 
 
 def cmd_set_theme(name):
@@ -1264,6 +1273,14 @@ def main():
 
     if "--show-all" in args:
         cmd_show_all()
+        return
+
+    if "--show-themes" in args:
+        cmd_show_themes()
+        return
+
+    if "--show-colors" in args:
+        cmd_show_colors()
         return
 
     if "--themes-demo" in args:
