@@ -51,6 +51,12 @@ The bars change colour based on your usage level so you can tell at a glance how
 
 Each preview shows **low** → **mid** → **high** usage colours as they appear on your status bar. The `rainbow` theme is animated — every character cycles through the full spectrum with a white shimmer highlight that sweeps across, like the Claude loading animation.
 
+<p align="center">
+  <img src="rainbow_preview.png" alt="Rainbow theme in action" width="600">
+  <br>
+  <sub>Rainbow theme — colours shift while thinking, with a gentle white shimmer when idle</sub>
+</p>
+
 Preview all themes in your terminal:
 ```bash
 python claude_status.py --themes

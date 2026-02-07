@@ -152,9 +152,9 @@ def rainbow_colorize(text, color_all=True, is_active=False):
     else:
         hue_drift = now * 0.02          # barely perceptible drift
         cycle = 10.0                    # slow, calm glimmer
-        highlight_width = 8             # wider, softer gradient
-        shimmer_desat = 0.60            # gentler white wash
-        shimmer_val_boost = 0.05
+        highlight_width = 6             # focused enough to be clearly visible
+        shimmer_desat = 0.95            # near-white at center for obvious effect
+        shimmer_val_boost = 0.10        # brighter peak
 
     highlight_center = (now % cycle) / cycle * (visible_count + highlight_width * 2) - highlight_width
 
