@@ -23,7 +23,7 @@
 - **Time remaining** — countdown until your session resets
 - **Weekly usage** — your 7-day rolling usage across all models
 - **Plan tier** — auto-detected (Pro, Max 5x, Max 20x)
-- **Extra usage** — optional bonus/overflow credit tracking
+- **Extra credits** — auto-shows when Claude gifts you bonus credits (e.g. to try a new model)
 
 No guesswork. No scanning log files. It pulls the **exact same numbers** shown on [claude.ai/settings/usage](https://claude.ai/settings/usage) via Anthropic's OAuth API.
 
@@ -54,7 +54,7 @@ The bars change colour based on your usage level so you can tell at a glance how
 | 50–79% | Yellow | Getting warm |
 | 80%+ | Red | Close to the limit |
 
-### 7 Built-in Themes
+### 10 Built-in Themes
 
 | Theme | Preview | Style |
 |-------|---------|-------|
@@ -152,6 +152,30 @@ python claude_status.py --rainbow-bars off
 python claude_status.py --rainbow-bars on
 ```
 
+### Extra Credits (Auto-detected)
+
+When Claude gifts you bonus credits (e.g. to try a new model), they **automatically appear** on your status line:
+
+```
+Session ━━━━━━━━ 5% 4h 07m | Weekly ━━━━━━━━ 6% | Extra ━━━━━━━━ £3733/£3700 | Max 20x
+```
+
+- **Automatic** — appears when credits are active in your account, no setup needed
+- **Hideable** — `--hide extra` to suppress, `--show extra` to bring back
+- **Currency** — defaults to `£`, change with `--currency $` or `--currency €`
+- **Detailed in config** — `--config` shows credit status, used/limit amounts, and display state
+
+```bash
+# Set your currency symbol
+python claude_status.py --currency £
+
+# Hide extra credits (even when active)
+python claude_status.py --hide extra
+
+# Force show (even when no credits gifted)
+python claude_status.py --show extra
+```
+
 ### Visibility Toggles
 
 Show or hide individual parts of the status line:
@@ -162,9 +186,6 @@ python claude_status.py --hide timer,plan
 
 # Show them again
 python claude_status.py --show timer,plan
-
-# Enable extra usage tracking (off by default)
-python claude_status.py --show extra
 
 # See current config
 python claude_status.py --config
@@ -179,9 +200,13 @@ All the CLI flags below also work as `/pulse` subcommands inside Claude Code:
 ```
 /pulse visibility      — toggle which parts are visible
 /pulse hide timer      — hide the reset timer
-/pulse show extra      — enable extra usage display
+/pulse show extra      — show extra credits on the status line
+/pulse hide extra      — hide extra credits
+/pulse currency £      — set your currency symbol
 /pulse animate off     — disable shimmer animation
 /pulse text-color cyan — set text colour to cyan
+/pulse update          — pull the latest version from GitHub
+/pulse config          — see your current settings and credit status
 ```
 
 ### Automatic Update Notifications
@@ -291,12 +316,14 @@ Edit `config.json` directly or use the CLI flags:
   "rainbow_bars": true,
   "animate": true,
   "text_color": "auto",
+  "currency": "£",
   "show": {
     "session": true,
     "weekly": true,
     "plan": true,
     "timer": true,
-    "extra": false
+    "extra": false,
+    "update": true
   }
 }
 ```
@@ -315,8 +342,9 @@ Edit `config.json` directly or use the CLI flags:
 | `--rainbow-bars on\|off` | Toggle whether rainbow colours the bars or just the text |
 | `--animate on\|off` | Toggle the white shimmer animation (default: on) |
 | `--text-color <name>` | Set the text colour for labels/percentages (default: auto) |
+| `--currency <symbol>` | Set currency symbol for extra credits (default: £) |
 | `--update` | Pull the latest version from GitHub |
-| `--config` | Print current configuration summary (includes hook/update status) |
+| `--config` | Print current configuration summary (includes version, credits, hooks) |
 
 Lower cache TTL values = more frequent API calls. Higher values = faster response but slightly staler data. Default of 30 seconds is a good balance.
 

@@ -129,8 +129,43 @@ Options:
 
 **Step 6:** Apply the animation setting with `--animate on|off`.
 
-**Step 7:** Confirm everything:
+**Step 7:** Check extra credits status by running `python "[REPLACE_WITH_YOUR_PATH]/claude_status.py" --config` silently and checking the "Extra Credits" section.
+
+If credits are **active** (Status: active), ask:
+
+```
+Question: "You have bonus credits from Claude. Show them on the status line?"
+Header: "Extra credits"
+multiSelect: false
+Options:
+  - "Show (Recommended)" — "Displays your gifted credit usage (e.g. Extra ━━━━ £50/£50)"
+  - "Hide" — "Keep the status line minimal — credits won't be shown"
+```
+
+If they pick "Show", run `--show extra`. If "Hide", run `--hide extra`.
+
+If credits are **not active**, skip this step entirely (it auto-shows when credits appear later anyway).
+
+**Step 8:** Ask about currency (only if credits are active AND they chose to show them):
+
+```
+Question: "What currency symbol for your extra credits?"
+Header: "Currency"
+multiSelect: false
+Options:
+  - "£ (GBP)" — "British Pound (default)"
+  - "$ (USD)" — "US Dollar"
+  - "€ (EUR)" — "Euro"
+```
+
+The user can also pick "Other" and type any symbol (e.g. ¥, ₹, kr, CHF, etc.).
+
+Apply with `--currency <symbol>`.
+
+**Step 9:** Confirm everything:
 "All set! Your status line is now using **<theme>** with **<text colour>** text and shimmer **<on/off>**. It'll update on the next refresh (~30s) or restart Claude Code to see it immediately."
+
+If credits were shown, also mention: "Your bonus credits will appear as **Extra ━━━━ <currency>used/<currency>limit**."
 
 ---
 

@@ -810,7 +810,7 @@ def build_status_line(usage, plan, config=None):
     extra_explicitly_hidden = config.get("extra_hidden", False)
     extra_has_credits = extra and extra.get("is_enabled") and extra.get("monthly_limit", 0) > 0
     if extra_enabled_by_user or (extra_has_credits and not extra_explicitly_hidden):
-        currency = config.get("currency", "$")
+        currency = config.get("currency", "\u00a3")
         if extra and extra.get("is_enabled"):
             pct = min(extra.get("utilization", 0), 100)
             used = extra.get("used_credits", 0)
@@ -1101,7 +1101,7 @@ def cmd_print_config():
             _usage = fetch_usage(token)
             _extra = _usage.get("extra_usage")
             if _extra and _extra.get("is_enabled"):
-                currency = config.get("currency", "$")
+                currency = config.get("currency", "\u00a3")
                 used = _extra.get("used_credits", 0)
                 limit = _extra.get("monthly_limit", 0)
                 pct = min(_extra.get("utilization", 0), 100)
@@ -1277,7 +1277,7 @@ def main():
                 pass
             utf8_print(f"Currency symbol: {BOLD}{val}{RESET}")
         else:
-            utf8_print("Usage: --currency <symbol>  (e.g. $, \u00a3, \u20ac, \u00a5)")
+            utf8_print("Usage: --currency <symbol>  (e.g. \u00a3, $, \u20ac, \u00a5)")
         return
 
     if "--config" in args:
