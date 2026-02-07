@@ -612,7 +612,7 @@ def cmd_update():
     remote = get_remote_commit()
 
     if local and remote and local == remote:
-        utf8_print(f"  {GREEN}Already up to date (v{VERSION}).{RESET}")
+        utf8_print(f"  {GREEN}No update found — you're on the latest version (v{VERSION}).{RESET}")
         return
 
     # Run git pull
