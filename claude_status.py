@@ -94,37 +94,86 @@ def hsv_to_rgb(h, s, v):
     return vi, p, q
 
 
-def rainbow_colorize(text):
-    """Apply animated rainbow gradient with a white shimmer sweep."""
+def rainbow_colorize(text, color_all=True):
+    """Apply animated rainbow gradient with a white shimmer sweep.
+
+    color_all=True  — strip existing ANSI, rainbow every character (bars + text).
+    color_all=False — preserve existing ANSI-colored chars (bars), only rainbow
+                      the uncolored text around them.
+    """
     now = time.time()
-    text_len = len(text)
-    if text_len == 0:
+
+    # Count visible characters (skip ANSI escapes) for highlight math
+    visible_count = 0
+    idx = 0
+    while idx < len(text):
+        if text[idx] == "\033":
+            while idx < len(text) and text[idx] != "m":
+                idx += 1
+            idx += 1
+            continue
+        visible_count += 1
+        idx += 1
+
+    if visible_count == 0:
         return text
 
     # Shimmer highlight sweeps across every ~3 seconds
     cycle = 3.0
-    highlight_center = (now % cycle) / cycle * (text_len + 10) - 5
+    highlight_center = (now % cycle) / cycle * (visible_count + 10) - 5
     highlight_width = 5
 
     result = []
-    for i, ch in enumerate(text):
-        # Rainbow hue: spread across the line + drift slowly over time
-        hue = ((i * 0.04) + (now * 0.15)) % 1.0
+    visible_idx = 0
+    has_existing_color = False  # tracks ANSI color state for color_all=False
+    i = 0
 
-        # Distance from the shimmer highlight
-        dist = abs(i - highlight_center)
+    while i < len(text):
+        # Handle ANSI escape sequences
+        if text[i] == "\033":
+            j = i
+            while j < len(text) and text[j] != "m":
+                j += 1
+            seq = text[i : j + 1]
 
-        if dist < highlight_width:
-            # Inside the shimmer band — desaturate toward white
-            blend = 1.0 - (dist / highlight_width)
-            sat = 0.85 * (1.0 - blend * 0.75)
-            val = 1.0
+            if color_all:
+                # Strip all existing ANSI — we'll re-color everything
+                i = j + 1
+                continue
+            else:
+                # Preserve existing ANSI; track color state
+                if seq == "\033[0m":
+                    has_existing_color = False
+                else:
+                    # Any non-reset sequence (color, DIM, etc.) means the
+                    # following chars are part of a styled region (the bar)
+                    has_existing_color = True
+                result.append(seq)
+                i = j + 1
+                continue
+
+        # Visible character
+        if not color_all and has_existing_color:
+            # Already styled by the bar — pass through unchanged
+            result.append(text[i])
         else:
-            sat = 0.85
-            val = 0.95
+            # Apply rainbow
+            hue = ((visible_idx * 0.04) + (now * 0.15)) % 1.0
+            dist = abs(visible_idx - highlight_center)
 
-        r, g, b = hsv_to_rgb(hue, sat, val)
-        result.append(f"\033[38;2;{r};{g};{b}m{ch}")
+            if dist < highlight_width:
+                blend = 1.0 - (dist / highlight_width)
+                sat = 0.85 * (1.0 - blend * 0.75)
+                val = 1.0
+            else:
+                sat = 0.85
+                val = 0.95
+
+            r, g, b = hsv_to_rgb(hue, sat, val)
+            result.append(f"\033[38;2;{r};{g};{b}m{text[i]}")
+
+        visible_idx += 1
+        i += 1
 
     result.append(RESET)
     return "".join(result)
@@ -144,6 +193,7 @@ def load_config():
     # Apply defaults
     data.setdefault("cache_ttl_seconds", DEFAULT_CACHE_TTL)
     data.setdefault("theme", "default")
+    data.setdefault("rainbow_bars", True)
     show = data.get("show", {})
     for key, default in DEFAULT_SHOW.items():
         show.setdefault(key, default)
@@ -285,7 +335,21 @@ def build_status_line(usage, plan, config=None):
 
     theme_name = config.get("theme", "default")
     is_rainbow = theme_name == "rainbow"
-    theme = THEMES["default"] if is_rainbow else get_theme_colours(theme_name)
+    rainbow_bars = config.get("rainbow_bars", True)
+
+    # When rainbow + bars: build plain text, rainbow everything
+    # When rainbow - bars: build bars with default colours, rainbow text only
+    # Otherwise: normal themed rendering
+    if is_rainbow and rainbow_bars:
+        bar_plain = True
+        theme = THEMES["default"]
+    elif is_rainbow:
+        bar_plain = False
+        theme = THEMES["default"]
+    else:
+        bar_plain = False
+        theme = get_theme_colours(theme_name)
+
     show = config.get("show", DEFAULT_SHOW)
     parts = []
 
@@ -294,19 +358,19 @@ def build_status_line(usage, plan, config=None):
         five = usage.get("five_hour")
         if five:
             pct = five.get("utilization", 0)
-            bar = make_bar(pct, theme, plain=is_rainbow)
+            bar = make_bar(pct, theme, plain=bar_plain)
             reset = format_reset_time(five.get("resets_at")) if show.get("timer", True) else None
             reset_str = f" {reset}" if reset else ""
             parts.append(f"Session {bar} {pct:.0f}%{reset_str}")
         else:
-            parts.append(f"Session {make_bar(0, theme, plain=is_rainbow)} 0%")
+            parts.append(f"Session {make_bar(0, theme, plain=bar_plain)} 0%")
 
     # Weekly Limit (7-day all models)
     if show.get("weekly", True):
         seven = usage.get("seven_day")
         if seven:
             pct = seven.get("utilization", 0)
-            bar = make_bar(pct, theme, plain=is_rainbow)
+            bar = make_bar(pct, theme, plain=bar_plain)
             parts.append(f"Weekly {bar} {pct:.0f}%")
 
     # Extra usage (bonus/overflow credits) — off by default
@@ -314,10 +378,10 @@ def build_status_line(usage, plan, config=None):
         extra = usage.get("extra")
         if extra:
             pct = extra.get("utilization", 0)
-            bar = make_bar(pct, theme, plain=is_rainbow)
+            bar = make_bar(pct, theme, plain=bar_plain)
             parts.append(f"Extra {bar} {pct:.0f}%")
         else:
-            parts.append(f"Extra {make_bar(0, theme, plain=is_rainbow)} 0%")
+            parts.append(f"Extra {make_bar(0, theme, plain=bar_plain)} 0%")
 
     # Plan name
     if show.get("plan", True) and plan:
@@ -326,7 +390,7 @@ def build_status_line(usage, plan, config=None):
     line = " | ".join(parts)
 
     if is_rainbow:
-        line = rainbow_colorize(line)
+        line = rainbow_colorize(line, color_all=rainbow_bars)
 
     return line
 
@@ -469,6 +533,9 @@ def cmd_print_config():
     utf8_print(f"\n{BOLD}claude-pulse config{RESET}\n")
     utf8_print(f"  Theme:     {theme_name}  {preview}")
     utf8_print(f"  Cache TTL: {config.get('cache_ttl_seconds', DEFAULT_CACHE_TTL)}s")
+    rb = config.get("rainbow_bars", True)
+    rb_state = f"{GREEN}on{RESET}" if rb else f"{RED}off{RESET}"
+    utf8_print(f"  Rainbow bars: {rb_state}  (rainbow colours {'include' if rb else 'skip'} the progress bars)")
     utf8_print(f"\n  {BOLD}Visibility:{RESET}")
     show = config.get("show", DEFAULT_SHOW)
     for key in DEFAULT_SHOW:
@@ -518,6 +585,30 @@ def main():
             cmd_hide(args[idx + 1])
         else:
             print("Usage: --hide <parts>  (comma-separated: session,weekly,plan,timer,extra)")
+        return
+
+    if "--rainbow-bars" in args:
+        idx = args.index("--rainbow-bars")
+        if idx + 1 < len(args):
+            val = args[idx + 1].lower()
+            if val in ("on", "true", "yes", "1"):
+                rb = True
+            elif val in ("off", "false", "no", "0"):
+                rb = False
+            else:
+                print(f"Unknown value: {val}  (use on or off)")
+                return
+            config = load_config()
+            config["rainbow_bars"] = rb
+            save_config(config)
+            try:
+                os.remove(get_cache_path())
+            except OSError:
+                pass
+            state = f"{GREEN}on{RESET}" if rb else f"{RED}off{RESET}"
+            utf8_print(f"Rainbow bars: {state}")
+        else:
+            print("Usage: --rainbow-bars on|off")
         return
 
     if "--config" in args:

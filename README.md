@@ -61,6 +61,15 @@ Set a theme:
 python claude_status.py --theme ocean
 ```
 
+When using `rainbow`, you can choose whether the bars also get rainbow colours or keep their normal usage-based colours (green/yellow/red):
+```bash
+# Rainbow text only — bars stay green/yellow/red
+python claude_status.py --rainbow-bars off
+
+# Rainbow everything including bars (default)
+python claude_status.py --rainbow-bars on
+```
+
 ### Visibility Toggles
 
 Show or hide individual parts of the status line:
@@ -173,6 +182,7 @@ Edit `config.json` directly or use the CLI flags:
 {
   "cache_ttl_seconds": 30,
   "theme": "default",
+  "rainbow_bars": true,
   "show": {
     "session": true,
     "weekly": true,
@@ -192,6 +202,7 @@ Edit `config.json` directly or use the CLI flags:
 | `--theme <name>` | Set the active theme |
 | `--show <parts>` | Enable comma-separated parts |
 | `--hide <parts>` | Disable comma-separated parts |
+| `--rainbow-bars on\|off` | Toggle whether rainbow colours the bars or just the text |
 | `--config` | Print current configuration summary |
 
 Lower cache TTL values = more frequent API calls. Higher values = faster response but slightly staler data. Default of 30 seconds is a good balance.
