@@ -1464,14 +1464,14 @@ def main():
         else:
             line = cached.get("line", "")
         line = append_update_indicator(line, config)
-        sys.stdout.buffer.write((line + "\n").encode("utf-8"))
+        sys.stdout.buffer.write((line + RESET + "\n").encode("utf-8"))
         return
 
     token, plan = get_credentials()
     if not token:
         line = "No credentials found"
         write_cache(cache_path, line)
-        sys.stdout.buffer.write((line + "\n").encode("utf-8"))
+        sys.stdout.buffer.write((line + RESET + "\n").encode("utf-8"))
         return
 
     try:
@@ -1486,7 +1486,7 @@ def main():
 
     write_cache(cache_path, line, usage, plan)
     line = append_update_indicator(line, config)
-    sys.stdout.buffer.write((line + "\n").encode("utf-8"))
+    sys.stdout.buffer.write((line + RESET + "\n").encode("utf-8"))
 
 
 if __name__ == "__main__":

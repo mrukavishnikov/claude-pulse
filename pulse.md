@@ -1,4 +1,4 @@
-Customise your status line (theme, colours, animation). $ARGUMENTS
+Configure your Claude status bars — themes, colours, and animations. $ARGUMENTS
 
 The claude-pulse script is at: [REPLACE_WITH_YOUR_PATH]/claude_status.py
 
@@ -16,9 +16,9 @@ If $ARGUMENTS is `config` or `settings`:
 -> Run `python "[REPLACE_WITH_YOUR_PATH]/claude_status.py" --config` silently.
 -> Summarise the settings in your response text (don't show raw ANSI output).
 
-If $ARGUMENTS is exactly `show` (no parts after it), or `colors`, or `colours`, or `preview`:
--> Run `python "[REPLACE_WITH_YOUR_PATH]/claude_status.py" --show-all` and show the output to the user.
--> This displays all themes with live previews AND all text colours with samples.
+If $ARGUMENTS is exactly `show` (no parts after it), or `show all`, or `colors`, or `colours`, or `preview`:
+-> Run `python "[REPLACE_WITH_YOUR_PATH]/claude_status.py" --show-all` using the Bash tool.
+-> IMPORTANT: Show the raw command output DIRECTLY to the user. Do NOT summarise, reformat, or create tables. The command outputs coloured ANSI text with live theme previews — the user needs to see the actual coloured bars, not a markdown description of them. Just run the command and let the output speak for itself. You may add a one-line note like "Current theme: **rainbow**" after the output, but nothing more.
 
 If $ARGUMENTS contains `hide <parts>` or `show <parts>` (with specific parts like extra, timer, etc.):
 -> Run the corresponding `--hide` or `--show` command directly.
@@ -51,11 +51,17 @@ If $ARGUMENTS is `update`:
 
 ### Interactive menu (when $ARGUMENTS is empty, `themes`, `theme`, or `menu`):
 
-**Step 0 — Update check:** Run `python "[REPLACE_WITH_YOUR_PATH]/claude_status.py" --config` silently to get the current settings. If the output contains "update available" or similar, tell the user FIRST:
+**Step 0 — Quick tips & update check:**
+
+First, show the user available quick commands so they know what's possible:
+
+> **Quick commands:** `/pulse show` preview all themes · `/pulse ocean` set a theme · `/pulse config` see settings · `/pulse update` check for updates
+
+Then run `python "[REPLACE_WITH_YOUR_PATH]/claude_status.py" --config` silently to get the current settings. If the output contains "update available" or similar, also tell the user:
 
 > **A new version of claude-pulse is available!** Run `/pulse update` to get the latest features and fixes.
 
-Then continue with the wizard. If no update is available, skip this message.
+Then continue with the wizard. If no update is available, skip the update message.
 
 **Step 1:** Run `python "[REPLACE_WITH_YOUR_PATH]/claude_status.py" --themes-demo` and show the output to the user. This prints all 10 themes with their actual coloured bars so the user can see every option before picking.
 
