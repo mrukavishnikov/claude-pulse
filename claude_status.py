@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Minimal Claude Code status line — fetches real usage data from Anthropic's OAuth API."""
 
-VERSION = "1.7.0"
+VERSION = "1.8.0"
 
 import json
 import math
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -15,7 +16,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 DEFAULT_CACHE_TTL = 30
-BAR_WIDTH = 8
+BAR_SIZES = {"small": 4, "medium": 8, "large": 12}
+DEFAULT_BAR_SIZE = "medium"
 FILL = "\u2501"   # ━ (thin horizontal bar)
 EMPTY = "\u2500"   # ─ (thin line)
 
@@ -389,8 +391,10 @@ def load_config():
     data.setdefault("cache_ttl_seconds", DEFAULT_CACHE_TTL)
     data.setdefault("theme", "default")
     data.setdefault("rainbow_bars", True)
+    data.setdefault("rainbow_mode", False)
     data.setdefault("animate", True)
     data.setdefault("text_color", "auto")
+    data.setdefault("bar_size", DEFAULT_BAR_SIZE)
     show = data.get("show", {})
     for key, default in DEFAULT_SHOW.items():
         show.setdefault(key, default)
@@ -593,6 +597,21 @@ def _read_version_from_file(script_path):
     return None
 
 
+def _fetch_remote_version():
+    """Fetch the VERSION string from the latest master on GitHub. Returns None on failure."""
+    try:
+        url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/master/claude_status.py"
+        req = urllib.request.Request(url, headers={"User-Agent": "claude-pulse-update-checker"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            for raw_line in resp:
+                line = raw_line.decode("utf-8", errors="replace")
+                if line.startswith("VERSION"):
+                    return line.split('"')[1]
+    except Exception:
+        pass
+    return None
+
+
 def cmd_update():
     """Pull the latest version from GitHub."""
     repo_dir = Path(__file__).resolve().parent
@@ -614,6 +633,13 @@ def cmd_update():
     if local and remote and local == remote:
         utf8_print(f"  {GREEN}No update found — you're on the latest version (v{VERSION}).{RESET}")
         return
+
+    # Fetch remote version to show what's available
+    remote_version = _fetch_remote_version()
+    if remote_version and remote_version != VERSION:
+        utf8_print(f"  {BRIGHT_YELLOW}Update found! v{remote_version} available{RESET}")
+    elif remote:
+        utf8_print(f"  {BRIGHT_YELLOW}Update found!{RESET} ({remote[:8]})")
 
     # Run git pull
     utf8_print(f"  Pulling latest from GitHub...")
@@ -729,16 +755,18 @@ def bar_colour(pct, theme):
     return theme["low"]
 
 
-def make_bar(pct, theme=None, plain=False):
+def make_bar(pct, theme=None, plain=False, width=None):
     """Build a thin coloured bar. plain=True returns characters only (no ANSI)."""
     if theme is None:
         theme = THEMES["default"]
-    filled = round(pct / 100 * BAR_WIDTH)
-    filled = max(0, min(BAR_WIDTH, filled))
+    if width is None:
+        width = BAR_SIZES[DEFAULT_BAR_SIZE]
+    filled = round(pct / 100 * width)
+    filled = max(0, min(width, filled))
     if plain:
-        return f"{FILL * filled}{EMPTY * (BAR_WIDTH - filled)}"
+        return f"{FILL * filled}{EMPTY * (width - filled)}"
     colour = bar_colour(pct, theme)
-    return f"{colour}{FILL * filled}{DIM}{EMPTY * (BAR_WIDTH - filled)}{RESET}"
+    return f"{colour}{FILL * filled}{DIM}{EMPTY * (width - filled)}{RESET}"
 
 
 def format_reset_time(resets_at_str):
@@ -764,23 +792,51 @@ def build_status_line(usage, plan, config=None):
         config = load_config()
 
     theme_name = config.get("theme", "default")
-    is_rainbow = theme_name == "rainbow"
+    is_rainbow_theme = theme_name == "rainbow"
+    rainbow_mode = config.get("rainbow_mode", False)
     rainbow_bars = config.get("rainbow_bars", True)
 
+    # Rainbow rendering applies when:
+    # 1. Theme is "rainbow" (classic behaviour), OR
+    # 2. rainbow_mode is enabled (rainbow animation on any theme)
+    use_rainbow = is_rainbow_theme or rainbow_mode
+
     # When rainbow + bars: build plain text, rainbow everything
-    # When rainbow - bars: build bars with default colours, rainbow text only
+    # When rainbow - bars: build bars with theme colours, rainbow text only
     # Otherwise: normal themed rendering
-    if is_rainbow and rainbow_bars:
+    if use_rainbow and rainbow_bars:
         bar_plain = True
-        theme = THEMES["default"]
-    elif is_rainbow:
+        theme = get_theme_colours(theme_name) if not is_rainbow_theme else THEMES["default"]
+    elif use_rainbow:
         bar_plain = False
-        theme = THEMES["default"]
+        theme = get_theme_colours(theme_name) if not is_rainbow_theme else THEMES["default"]
     else:
         bar_plain = False
         theme = get_theme_colours(theme_name)
 
     show = config.get("show", DEFAULT_SHOW)
+    bar_size = config.get("bar_size", DEFAULT_BAR_SIZE)
+    bw = BAR_SIZES.get(bar_size, BAR_SIZES[DEFAULT_BAR_SIZE])
+
+    # Terminal width clamping — prevent bars from causing line wrapping
+    # Estimate: each section ≈ bw + 15 chars of text, up to 4 sections + separators
+    try:
+        term_width = shutil.get_terminal_size((120, 24)).columns
+        # Count how many bar sections we'll render
+        num_bars = sum(1 for k in ("session", "weekly") if show.get(k, True))
+        extra = usage.get("extra_usage")
+        if extra and extra.get("is_enabled") and not config.get("extra_hidden", False):
+            num_bars += 1
+        # Each bar section: "Label " + bar + " XX% Xh XXm" ≈ bw + 20
+        # Separators: " | " = 3 chars each
+        # Plan name: ~10 chars, update indicator: ~20 chars
+        overhead = num_bars * 20 + (num_bars - 1) * 3 + 30
+        max_bar_width = max(2, (term_width - overhead) // max(num_bars, 1))
+        if bw > max_bar_width:
+            bw = max_bar_width
+    except Exception:
+        pass  # if terminal size detection fails, use configured size
+
     parts = []
 
     # Current Session (5-hour block)
@@ -788,19 +844,19 @@ def build_status_line(usage, plan, config=None):
         five = usage.get("five_hour")
         if five:
             pct = five.get("utilization", 0)
-            bar = make_bar(pct, theme, plain=bar_plain)
+            bar = make_bar(pct, theme, plain=bar_plain, width=bw)
             reset = format_reset_time(five.get("resets_at")) if show.get("timer", True) else None
             reset_str = f" {reset}" if reset else ""
             parts.append(f"Session {bar} {pct:.0f}%{reset_str}")
         else:
-            parts.append(f"Session {make_bar(0, theme, plain=bar_plain)} 0%")
+            parts.append(f"Session {make_bar(0, theme, plain=bar_plain, width=bw)} 0%")
 
     # Weekly Limit (7-day all models)
     if show.get("weekly", True):
         seven = usage.get("seven_day")
         if seven:
             pct = seven.get("utilization", 0)
-            bar = make_bar(pct, theme, plain=bar_plain)
+            bar = make_bar(pct, theme, plain=bar_plain, width=bw)
             parts.append(f"Weekly {bar} {pct:.0f}%")
 
     # Extra usage (bonus/gifted credits)
@@ -815,7 +871,7 @@ def build_status_line(usage, plan, config=None):
             pct = min(extra.get("utilization", 0), 100)
             used = extra.get("used_credits", 0) / 100  # API returns pence/cents
             limit = extra.get("monthly_limit", 0) / 100
-            bar = make_bar(pct, theme, plain=bar_plain)
+            bar = make_bar(pct, theme, plain=bar_plain, width=bw)
             parts.append(f"Extra {bar} {currency}{used:.2f}/{currency}{limit:.2f}")
         elif extra_enabled_by_user:
             # User explicitly enabled but no credits gifted
@@ -833,7 +889,7 @@ def build_status_line(usage, plan, config=None):
     processing = is_claude_processing()
     should_animate = animate and processing
 
-    if is_rainbow:
+    if use_rainbow:
         line = rainbow_colorize(line, color_all=rainbow_bars, shimmer=should_animate)
     else:
         # Apply text colour to labels/percentages/separators
@@ -980,9 +1036,11 @@ def cmd_themes_demo():
         "five_hour": {"utilization": 42, "resets_at": None},
         "seven_day": {"utilization": 67},
     }
-    current = load_config().get("theme", "default")
+    user_config = load_config()
+    current = user_config.get("theme", "default")
+    user_bar_size = user_config.get("bar_size", DEFAULT_BAR_SIZE)
     for name in THEMES:
-        demo_config = {"theme": name, "show": {"session": True, "weekly": True, "plan": True, "timer": False, "extra": False}}
+        demo_config = {"theme": name, "bar_size": user_bar_size, "show": {"session": True, "weekly": True, "plan": True, "timer": False, "extra": False}}
         line = build_status_line(demo_usage, "Max 20x", demo_config)
         marker = " <<" if name == current else ""
         utf8_print(f"  {BOLD}{name:<10}{RESET} {line}{marker}")
@@ -994,6 +1052,7 @@ def cmd_show_all():
     current_config = load_config()
     current_theme = current_config.get("theme", "default")
     current_tc = current_config.get("text_color", "auto")
+    user_bar_size = current_config.get("bar_size", DEFAULT_BAR_SIZE)
 
     # Themes
     utf8_print(f"\n{BOLD}Themes:{RESET}\n")
@@ -1002,7 +1061,7 @@ def cmd_show_all():
         "seven_day": {"utilization": 67},
     }
     for name in THEMES:
-        demo_config = {"theme": name, "show": {"session": True, "weekly": True, "plan": True, "timer": False, "extra": False}}
+        demo_config = {"theme": name, "bar_size": user_bar_size, "show": {"session": True, "weekly": True, "plan": True, "timer": False, "extra": False}}
         line = build_status_line(demo_usage, "Max 20x", demo_config)
         marker = f" {GREEN}<< current{RESET}" if name == current_theme else ""
         utf8_print(f"  {BOLD}{name:<10}{RESET} {line}{marker}")
@@ -1099,10 +1158,16 @@ def cmd_print_config():
     utf8_print(f"\n{BOLD}claude-pulse v{VERSION}{RESET}\n")
     utf8_print(f"  Theme:     {theme_name}  {preview}")
     utf8_print(f"  Cache TTL: {config.get('cache_ttl_seconds', DEFAULT_CACHE_TTL)}s")
-    utf8_print(f"  Currency:  {config.get('currency', '$')}")
+    utf8_print(f"  Currency:  {config.get('currency', chr(163))}")
+    bs = config.get("bar_size", DEFAULT_BAR_SIZE)
+    bw_display = BAR_SIZES.get(bs, BAR_SIZES[DEFAULT_BAR_SIZE])
+    utf8_print(f"  Bar size:  {bs} ({bw_display} chars)")
     rb = config.get("rainbow_bars", True)
     rb_state = f"{GREEN}on{RESET}" if rb else f"{RED}off{RESET}"
     utf8_print(f"  Rainbow bars: {rb_state}  (rainbow colours {'include' if rb else 'skip'} the progress bars)")
+    rm = config.get("rainbow_mode", False)
+    rm_state = f"{GREEN}on{RESET}" if rm else f"{RED}off{RESET}"
+    utf8_print(f"  Rainbow mode: {rm_state}  (rainbow animation {'on any theme' if rm else 'only when theme is rainbow'})")
     anim = config.get("animate", True)
     anim_state = f"{GREEN}on{RESET}" if anim else f"{RED}off{RESET}"
     utf8_print(f"  Animation:    {anim_state}  (white shimmer {'sweeps across' if anim else 'disabled'} while Claude is writing)")
@@ -1257,6 +1322,31 @@ def main():
             print("Usage: --rainbow-bars on|off")
         return
 
+    if "--rainbow-mode" in args:
+        idx = args.index("--rainbow-mode")
+        if idx + 1 < len(args):
+            val = args[idx + 1].lower()
+            if val in ("on", "true", "yes", "1"):
+                rm = True
+            elif val in ("off", "false", "no", "0"):
+                rm = False
+            else:
+                print(f"Unknown value: {val}  (use on or off)")
+                return
+            config = load_config()
+            config["rainbow_mode"] = rm
+            save_config(config)
+            try:
+                os.remove(get_cache_path())
+            except OSError:
+                pass
+            state = f"{GREEN}on{RESET}" if rm else f"{RED}off{RESET}"
+            theme = config.get("theme", "default")
+            utf8_print(f"Rainbow animation: {state}  (theme: {theme})")
+        else:
+            print("Usage: --rainbow-mode on|off")
+        return
+
     if "--text-color" in args:
         idx = args.index("--text-color")
         if idx + 1 < len(args):
@@ -1305,6 +1395,31 @@ def main():
             utf8_print(f"Animation: {state}")
         else:
             print("Usage: --animate on|off")
+        return
+
+    if "--bar-size" in args:
+        idx = args.index("--bar-size")
+        if idx + 1 < len(args):
+            val = args[idx + 1].lower()
+            if val not in BAR_SIZES:
+                utf8_print(f"Unknown size: {val}")
+                utf8_print(f"Available: {', '.join(BAR_SIZES.keys())}")
+                return
+            config = load_config()
+            config["bar_size"] = val
+            save_config(config)
+            try:
+                os.remove(get_cache_path())
+            except OSError:
+                pass
+            bw = BAR_SIZES[val]
+            demo_bar = f"{GREEN}{FILL * bw}{RESET}"
+            utf8_print(f"Bar size: {BOLD}{val}{RESET} ({bw} chars)  {demo_bar}")
+        else:
+            utf8_print(f"Usage: --bar-size <small|medium|large>")
+            for name, width in BAR_SIZES.items():
+                demo = f"{GREEN}{FILL * width}{RESET}"
+                utf8_print(f"  {name:<8} {demo}  ({width} chars)")
         return
 
     if "--currency" in args:

@@ -1,4 +1,4 @@
-Configure the claude-pulse status line. The user's request is: $ARGUMENTS
+Customise your status line (theme, colours, animation). $ARGUMENTS
 
 The claude-pulse script is at: [REPLACE_WITH_YOUR_PATH]/claude_status.py
 
@@ -26,6 +26,10 @@ If $ARGUMENTS contains `hide <parts>` or `show <parts>` (with specific parts lik
 If $ARGUMENTS is `rainbow-bars on` or `rainbow-bars off`:
 -> Run `--rainbow-bars on|off` directly.
 
+If $ARGUMENTS is `rainbow-mode on` or `rainbow-mode off`:
+-> Run `--rainbow-mode on|off` directly.
+-> Confirm: "Rainbow animation **<on/off>**. This applies the flowing rainbow colour effect to your current theme."
+
 If $ARGUMENTS is `animate on` or `animate off`:
 -> Run `--animate on|off` directly.
 
@@ -36,6 +40,10 @@ If $ARGUMENTS matches `text-color <name>` or `text-colour <name>`:
 If $ARGUMENTS matches `currency <symbol>` (e.g. `currency £`, `currency €`, `currency $`):
 -> Run `--currency <symbol>` directly.
 -> Confirm: "Currency set to **<symbol>**. Extra usage will display as <symbol>amount."
+
+If $ARGUMENTS matches `bar-size <size>` or `bars <size>` (where size is `small`, `medium`, or `large`):
+-> Run `--bar-size <size>` directly.
+-> Confirm: "Bar size set to **<size>**. The status line will update on the next refresh."
 
 If $ARGUMENTS is `update`:
 -> Run `python "[REPLACE_WITH_YOUR_PATH]/claude_status.py" --update` and show the output.
@@ -131,26 +139,67 @@ Options:
   - "Off" — "Static colours, no animation"
 ```
 
+**Step 5b:** If the chosen theme is NOT rainbow, ask about rainbow animation:
+
+```
+Question: "Enable rainbow animation on your bars?"
+Header: "Rainbow"
+multiSelect: false
+Options:
+  - "Off (Recommended)" — "Keep your theme's own colours on the bars"
+  - "On" — "Override bar colours with a flowing rainbow gradient"
+```
+
+If they pick "On", run `--rainbow-mode on`. If "Off", run `--rainbow-mode off`.
+
 **Step 6:** Apply the animation setting with `--animate on|off`.
+
+**Step 6b:** Ask about bar size:
+
+```
+Question: "How wide should the progress bars be?"
+Header: "Bar size"
+multiSelect: false
+Options:
+  - "Medium (Recommended)" — "8 characters — balanced default"
+  - "Small" — "4 characters — compact, more room for text"
+  - "Large" — "12 characters — wide bars, more visual detail"
+```
+
+Apply with `--bar-size <small|medium|large>`.
 
 **Step 7:** Check extra credits status by running `python "[REPLACE_WITH_YOUR_PATH]/claude_status.py" --config` silently and checking the "Extra Credits" section.
 
 If credits are **active** (Status: active), ask:
 
 ```
-Question: "You have bonus credits from Claude. Show them on the status line?"
+Question: "You have bonus credits from Claude. How should extra usage appear?"
 Header: "Extra credits"
 multiSelect: false
 Options:
-  - "Show (Recommended)" — "Displays your gifted credit usage (e.g. Extra ━━━━ £50/£50)"
-  - "Hide" — "Keep the status line minimal — credits won't be shown"
+  - "Dynamic (Recommended)" — "Auto-shows when credits are active, hides when not"
+  - "Always show" — "Always display extra credits, even if none are gifted"
+  - "Hide" — "Never show extra credits on the status line"
 ```
 
-If they pick "Show", run `--show extra`. If "Hide", run `--hide extra`.
+If they pick "Dynamic": this is the default behaviour — no command needed (leave defaults).
+If they pick "Always show", run `--show extra`.
+If they pick "Hide", run `--hide extra`.
 
-If credits are **not active**, skip this step entirely (it auto-shows when credits appear later anyway).
+If credits are **not active**, ask a simpler version:
 
-**Step 8:** Ask about currency (only if credits are active AND they chose to show them):
+```
+Question: "If Claude gifts you bonus credits in the future, show them?"
+Header: "Extra credits"
+multiSelect: false
+Options:
+  - "Dynamic (Recommended)" — "Auto-shows when credits appear, stays hidden otherwise"
+  - "Hide" — "Never show, even if credits are gifted later"
+```
+
+If "Dynamic", no command needed (default). If "Hide", run `--hide extra`.
+
+**Step 8:** Ask about currency (only if they chose "Dynamic" or "Always show"):
 
 ```
 Question: "What currency symbol for your extra credits?"

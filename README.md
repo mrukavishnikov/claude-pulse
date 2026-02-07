@@ -153,12 +153,38 @@ python claude_status.py --rainbow-bars off
 python claude_status.py --rainbow-bars on
 ```
 
+### Rainbow Animation on Any Theme
+
+Love the rainbow animation but prefer ocean's or ember's bar colours? **Rainbow mode** applies the flowing rainbow colour effect to any theme:
+
+```bash
+# Enable rainbow animation on your current theme
+python claude_status.py --rainbow-mode on
+
+# Turn it off (bars use the theme's own colours)
+python claude_status.py --rainbow-mode off
+```
+
+This is independent of the `rainbow` theme — you can use `--theme ocean --rainbow-mode on` to get ocean bars with rainbow animation.
+
+### Configurable Bar Size
+
+Choose how wide the progress bars appear — small (4 chars), medium (8 chars, default), or large (12 chars):
+
+```bash
+python claude_status.py --bar-size small    # ━━━━
+python claude_status.py --bar-size medium   # ━━━━━━━━
+python claude_status.py --bar-size large    # ━━━━━━━━━━━━
+```
+
+The bars automatically clamp to your terminal width so they never wrap to the next line.
+
 ### Extra Credits (Auto-detected)
 
 When Claude gifts you bonus credits (e.g. to try a new model), they **automatically appear** on your status line:
 
 ```
-Session ━━━━━━━━ 5% 4h 07m | Weekly ━━━━━━━━ 6% | Extra ━━━━━━━━ £3733/£3700 | Max 20x
+Session ━━━━━━━━ 5% 4h 07m | Weekly ━━━━━━━━ 6% | Extra ━━━━━━━━ £37.33/£37.00 | Max 20x
 ```
 
 - **Automatic** — appears when credits are active in your account, no setup needed
@@ -199,15 +225,17 @@ python claude_status.py --config
 All the CLI flags below also work as `/pulse` subcommands inside Claude Code:
 
 ```
-/pulse visibility      — toggle which parts are visible
-/pulse hide timer      — hide the reset timer
-/pulse show extra      — show extra credits on the status line
-/pulse hide extra      — hide extra credits
-/pulse currency £      — set your currency symbol
-/pulse animate off     — disable shimmer animation
-/pulse text-color cyan — set text colour to cyan
-/pulse update          — pull the latest version from GitHub
-/pulse config          — see your current settings and credit status
+/pulse visibility       — toggle which parts are visible
+/pulse hide timer       — hide the reset timer
+/pulse show extra       — show extra credits on the status line
+/pulse hide extra       — hide extra credits
+/pulse currency £       — set your currency symbol
+/pulse animate off      — disable shimmer animation
+/pulse rainbow-mode on  — enable rainbow animation on any theme
+/pulse bar-size large   — set progress bar width
+/pulse text-color cyan  — set text colour to cyan
+/pulse update           — pull the latest version from GitHub
+/pulse config           — see your current settings and credit status
 ```
 
 ### Automatic Update Notifications
@@ -315,9 +343,11 @@ Edit `config.json` directly or use the CLI flags:
   "cache_ttl_seconds": 30,
   "theme": "default",
   "rainbow_bars": true,
+  "rainbow_mode": false,
   "animate": true,
   "text_color": "auto",
   "currency": "£",
+  "bar_size": "medium",
   "show": {
     "session": true,
     "weekly": true,
@@ -342,8 +372,10 @@ Edit `config.json` directly or use the CLI flags:
 | `--show <parts>` | Enable comma-separated parts |
 | `--hide <parts>` | Disable comma-separated parts |
 | `--rainbow-bars on\|off` | Toggle whether rainbow colours the bars or just the text |
+| `--rainbow-mode on\|off` | Enable rainbow animation on any theme (default: off) |
 | `--animate on\|off` | Toggle the white shimmer animation (default: on) |
 | `--text-color <name>` | Set the text colour for labels/percentages (default: auto) |
+| `--bar-size <small\|medium\|large>` | Set progress bar width: 4, 8, or 12 chars (default: medium) |
 | `--currency <symbol>` | Set currency symbol for extra credits (default: £) |
 | `--update` | Pull the latest version from GitHub |
 | `--config` | Print current configuration summary (includes version, credits, hooks) |
@@ -371,6 +403,18 @@ Lower cache TTL values = more frequent API calls. Higher values = faster respons
 ## License
 
 MIT License. See [LICENSE](LICENSE) for details.
+
+---
+
+## Star History
+
+<a href="https://star-history.com/#NoobyGains/claude-pulse&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=NoobyGains/claude-pulse&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=NoobyGains/claude-pulse&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=NoobyGains/claude-pulse&type=Date" />
+ </picture>
+</a>
 
 ---
 
