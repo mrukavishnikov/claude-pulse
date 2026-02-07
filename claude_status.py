@@ -105,6 +105,7 @@ DEFAULT_SHOW = {
     "plan": True,
     "timer": True,
     "extra": False,
+    "update": True,
 }
 
 
@@ -563,14 +564,70 @@ def check_for_update():
     return update_available
 
 
-def append_update_indicator(line):
-    """Append a subtle update indicator if a newer version is available."""
+def append_update_indicator(line, config=None):
+    """Append a visible update indicator if a newer version is available."""
     try:
+        if config:
+            show = config.get("show", DEFAULT_SHOW)
+            if not show.get("update", True):
+                return line
         if check_for_update():
-            return line + f" {DIM}\u2191 update{RESET}"
+            return line + f" {BRIGHT_YELLOW}\u2191 Pulse Update{RESET}"
     except Exception:
         pass  # never break the status line for an update check
     return line
+
+
+def cmd_update():
+    """Pull the latest version from GitHub."""
+    repo_dir = Path(__file__).resolve().parent
+    utf8_print(f"{BRIGHT_WHITE}claude-pulse update{RESET}\n")
+
+    # Check if we're in a git repo
+    git_dir = repo_dir / ".git"
+    if not git_dir.exists():
+        utf8_print(f"  {RED}Not a git repository.{RESET}")
+        utf8_print(f"  Re-clone from: https://github.com/{GITHUB_REPO}")
+        return
+
+    # Check current status
+    local = get_local_commit()
+    remote = get_remote_commit()
+
+    if local and remote and local == remote:
+        utf8_print(f"  {GREEN}Already up to date.{RESET}")
+        return
+
+    # Run git pull
+    utf8_print(f"  Pulling latest from GitHub...")
+    try:
+        result = subprocess.run(
+            ["git", "pull", "origin", "master"],
+            capture_output=True, text=True, timeout=30,
+            cwd=str(repo_dir),
+        )
+        if result.returncode == 0:
+            utf8_print(f"  {GREEN}Updated successfully!{RESET}")
+            if result.stdout.strip():
+                for ln in result.stdout.strip().split("\n"):
+                    utf8_print(f"  {DIM}{ln}{RESET}")
+            # Clear update check cache so indicator disappears
+            state_dir = get_state_dir()
+            uc_path = state_dir / "update_check.json"
+            try:
+                uc_path.unlink()
+            except OSError:
+                pass
+            utf8_print(f"\n  Restart Claude Code to use the new version.")
+        else:
+            utf8_print(f"  {RED}Update failed:{RESET}")
+            if result.stderr.strip():
+                for ln in result.stderr.strip().split("\n"):
+                    utf8_print(f"  {DIM}{ln}{RESET}")
+    except subprocess.TimeoutExpired:
+        utf8_print(f"  {RED}Timed out. Check your network connection.{RESET}")
+    except Exception as e:
+        utf8_print(f"  {RED}Error: {e}{RESET}")
 
 
 def read_cache(cache_path, ttl):
@@ -1023,6 +1080,10 @@ def main():
         set_processing(False)
         return
 
+    if "--update" in args:
+        cmd_update()
+        return
+
     if "--install-hooks" in args:
         install_hooks()
         return
@@ -1052,7 +1113,7 @@ def main():
         if idx + 1 < len(args):
             cmd_show(args[idx + 1])
         else:
-            print("Usage: --show <parts>  (comma-separated: session,weekly,plan,timer,extra)")
+            print("Usage: --show <parts>  (comma-separated: session,weekly,plan,timer,extra,update)")
         return
 
     if "--hide" in args:
@@ -1060,7 +1121,7 @@ def main():
         if idx + 1 < len(args):
             cmd_hide(args[idx + 1])
         else:
-            print("Usage: --hide <parts>  (comma-separated: session,weekly,plan,timer,extra)")
+            print("Usage: --hide <parts>  (comma-separated: session,weekly,plan,timer,extra,update)")
         return
 
     if "--rainbow-bars" in args:
@@ -1162,7 +1223,7 @@ def main():
             line = build_status_line(cached["usage"], cached.get("plan", ""), config)
         else:
             line = cached.get("line", "")
-        line = append_update_indicator(line)
+        line = append_update_indicator(line, config)
         sys.stdout.buffer.write((line + "\n").encode("utf-8"))
         return
 
@@ -1184,7 +1245,7 @@ def main():
         line = "Usage unavailable"
 
     write_cache(cache_path, line, usage, plan)
-    line = append_update_indicator(line)
+    line = append_update_indicator(line, config)
     sys.stdout.buffer.write((line + "\n").encode("utf-8"))
 
 

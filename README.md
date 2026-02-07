@@ -35,6 +35,7 @@ Once installed, just type **`/pulse`** in Claude Code. That's it. A guided wizar
 /pulse          — opens the interactive setup wizard
 /pulse ocean    — jump straight to a theme by name
 /pulse config   — see your current settings
+/pulse update   — pull the latest version from GitHub
 ```
 
 Everything below can also be configured via `/pulse` — the CLI flags are there if you prefer them.
@@ -169,7 +170,7 @@ python claude_status.py --show extra
 python claude_status.py --config
 ```
 
-**Available parts:** `session`, `weekly`, `plan`, `timer`, `extra`
+**Available parts:** `session`, `weekly`, `plan`, `timer`, `extra`, `update`
 
 ### `/pulse` Slash Command
 
@@ -185,12 +186,23 @@ All the CLI flags below also work as `/pulse` subcommands inside Claude Code:
 
 ### Automatic Update Notifications
 
-claude-pulse checks GitHub for new releases once per hour (cached, 3-second timeout). If a newer version is available, a subtle `↑ update` indicator appears on your status line. Run `git pull` to update.
+claude-pulse checks GitHub for new releases once per hour (cached, 3-second timeout). If a newer version is available, a bright yellow `↑ Pulse Update` indicator appears on your status line.
+
+Update right from Claude Code:
+```
+/pulse update    — pulls the latest version automatically
+```
+
+Or from the command line:
+```bash
+python claude_status.py --update
+```
 
 The update check is:
 - **Automatic** — no setup needed for git clone installs
 - **Silent** — never blocks the status line; skips quietly on network errors
 - **Lightweight** — one small GitHub API call per hour, result cached locally
+- **Optional** — hide the notification with `--hide update` if you want to stay on your current version
 
 ### Lightweight and fast
 
@@ -303,6 +315,7 @@ Edit `config.json` directly or use the CLI flags:
 | `--rainbow-bars on\|off` | Toggle whether rainbow colours the bars or just the text |
 | `--animate on\|off` | Toggle the white shimmer animation (default: on) |
 | `--text-color <name>` | Set the text colour for labels/percentages (default: auto) |
+| `--update` | Pull the latest version from GitHub |
 | `--config` | Print current configuration summary (includes hook/update status) |
 
 Lower cache TTL values = more frequent API calls. Higher values = faster response but slightly staler data. Default of 30 seconds is a good balance.
@@ -323,7 +336,7 @@ Lower cache TTL values = more frequent API calls. Higher values = faster respons
 | Stale percentages | Delete the cache: `~/.cache/claude-status/cache.json` (Linux/Mac) or `%LOCALAPPDATA%\claude-status\cache.json` (Windows) |
 | Theme not applying | Clear the cache file after changing themes so the next render uses the new colours |
 | Animation doesn't stop when idle | Run `python claude_status.py --install` to install the lifecycle hooks, then restart Claude Code |
-| `↑ update` showing | Run `git pull` in the claude-pulse directory to get the latest version |
+| `↑ Pulse Update` showing | Run `/pulse update` in Claude Code, or `python claude_status.py --update` from the command line. To hide the notification: `--hide update` |
 
 ## License
 

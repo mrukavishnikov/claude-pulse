@@ -29,6 +29,10 @@ If $ARGUMENTS matches `text-color <name>` or `text-colour <name>`:
 -> Run `--text-color <name>` directly.
 -> Available colours: auto, white, bright_white, cyan, blue, green, yellow, magenta, red, orange, violet, pink, dim, default, none
 
+If $ARGUMENTS is `update`:
+-> Run `python "[REPLACE_WITH_YOUR_PATH]/claude_status.py" --update` and show the output.
+-> After a successful update, remind the user to restart Claude Code to use the new version.
+
 ### Interactive menu (when $ARGUMENTS is empty, `themes`, `theme`, or `menu`):
 
 **Step 1:** Run `python "[REPLACE_WITH_YOUR_PATH]/claude_status.py" --config` silently to get the current settings.
