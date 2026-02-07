@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Minimal Claude Code status line — fetches real usage data from Anthropic's OAuth API."""
 
+VERSION = "1.7.0"
+
 import json
 import math
 import os
@@ -578,10 +580,25 @@ def append_update_indicator(line, config=None):
     return line
 
 
+def _read_version_from_file(script_path):
+    """Read VERSION from a script file on disk (may differ from in-memory VERSION after git pull)."""
+    try:
+        with open(script_path, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("VERSION"):
+                    # VERSION = "1.7.0"
+                    return line.split('"')[1]
+    except Exception:
+        pass
+    return None
+
+
 def cmd_update():
     """Pull the latest version from GitHub."""
     repo_dir = Path(__file__).resolve().parent
+    script_path = Path(__file__).resolve()
     utf8_print(f"{BRIGHT_WHITE}claude-pulse update{RESET}\n")
+    utf8_print(f"  Current version: {BRIGHT_WHITE}v{VERSION}{RESET}")
 
     # Check if we're in a git repo
     git_dir = repo_dir / ".git"
@@ -595,7 +612,7 @@ def cmd_update():
     remote = get_remote_commit()
 
     if local and remote and local == remote:
-        utf8_print(f"  {GREEN}Already up to date.{RESET}")
+        utf8_print(f"  {GREEN}Already up to date (v{VERSION}).{RESET}")
         return
 
     # Run git pull
@@ -607,7 +624,12 @@ def cmd_update():
             cwd=str(repo_dir),
         )
         if result.returncode == 0:
-            utf8_print(f"  {GREEN}Updated successfully!{RESET}")
+            # Read the new version from the updated file on disk
+            new_version = _read_version_from_file(script_path)
+            if new_version and new_version != VERSION:
+                utf8_print(f"  {GREEN}Updated to v{new_version}!{RESET}")
+            else:
+                utf8_print(f"  {GREEN}Updated successfully!{RESET}")
             if result.stdout.strip():
                 for ln in result.stdout.strip().split("\n"):
                     utf8_print(f"  {DIM}{ln}{RESET}")
@@ -618,7 +640,7 @@ def cmd_update():
                     (state_dir / cache_name).unlink()
                 except OSError:
                     pass
-            utf8_print(f"\n  Restart Claude Code to use the new version.")
+            utf8_print(f"\n  Restart Claude Code to use v{new_version or 'latest'}.")
         else:
             utf8_print(f"  {RED}Update failed:{RESET}")
             if result.stderr.strip():
@@ -1022,7 +1044,7 @@ def cmd_print_config():
         colours = THEMES.get(theme_name, THEMES["default"])
         preview = f"{colours['low']}{FILL * 3}{colours['mid']}{FILL * 3}{colours['high']}{FILL * 2}{RESET}"
 
-    utf8_print(f"\n{BOLD}claude-pulse config{RESET}\n")
+    utf8_print(f"\n{BOLD}claude-pulse v{VERSION}{RESET}\n")
     utf8_print(f"  Theme:     {theme_name}  {preview}")
     utf8_print(f"  Cache TTL: {config.get('cache_ttl_seconds', DEFAULT_CACHE_TTL)}s")
     rb = config.get("rainbow_bars", True)
@@ -1051,9 +1073,9 @@ def cmd_print_config():
     if local:
         update = check_for_update()
         if update:
-            utf8_print(f"  Update:       {YELLOW}available{RESET}  (run {BOLD}git pull{RESET} to update)")
+            utf8_print(f"  Update:       {BRIGHT_YELLOW}available{RESET}  (run {BOLD}/pulse update{RESET} or {BOLD}--update{RESET})")
         elif update is False:
-            utf8_print(f"  Update:       {GREEN}up to date{RESET}")
+            utf8_print(f"  Update:       {GREEN}up to date (v{VERSION}){RESET}")
         else:
             utf8_print(f"  Update:       {DIM}check failed{RESET}")
     utf8_print(f"\n  {BOLD}Visibility:{RESET}")
