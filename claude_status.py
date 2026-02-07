@@ -270,6 +270,22 @@ def cmd_list_themes():
     utf8_print("")
 
 
+def cmd_themes_demo():
+    """Print a simulated status line for each theme so users can see them in action."""
+    utf8_print(f"\n{BOLD}Theme previews:{RESET}\n")
+    # Simulated usage data for the demo
+    demo_usage = {
+        "five_hour": {"utilization": 42, "resets_at": None},
+        "seven_day": {"utilization": 67},
+    }
+    for name, colours in THEMES.items():
+        demo_config = {"theme": name, "show": {"session": True, "weekly": True, "plan": True, "timer": False, "extra": False}}
+        line = build_status_line(demo_usage, "Max 20x", demo_config)
+        marker = " <<" if name == load_config().get("theme", "default") else ""
+        utf8_print(f"  {BOLD}{name:<10}{RESET} {line}{marker}")
+    utf8_print(f"\n  Set with: python claude_status.py --theme <name>\n")
+
+
 def cmd_set_theme(name):
     """Set the active theme and save to config."""
     if name not in THEMES:
@@ -337,6 +353,10 @@ def main():
 
     if "--install" in args:
         install_status_line()
+        return
+
+    if "--themes-demo" in args:
+        cmd_themes_demo()
         return
 
     if "--themes" in args:
