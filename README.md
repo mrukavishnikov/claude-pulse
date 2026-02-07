@@ -134,9 +134,16 @@ python claude_status.py --text-color magenta
 | `mono` | dim | Subtle contrast with white/bright bars |
 | `rainbow` | none | Rainbow handles its own colouring |
 
-Preview all themes in your terminal:
+Preview all themes and text colours live in Claude Code:
+```
+/pulse show
+```
+This renders every theme as a real status line with coloured bars so you can compare them side-by-side. Press **Ctrl+O** to expand the preview.
+
+You can also preview from the command line:
 ```bash
-python claude_status.py --themes
+python claude_status.py --show-themes
+python claude_status.py --show-colors
 ```
 
 Set a theme:
