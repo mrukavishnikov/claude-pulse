@@ -87,10 +87,13 @@ python claude_status.py --animate on
 The `--install` command automatically sets up Claude Code hooks so the animation knows when to start and stop:
 
 - **`UserPromptSubmit`** hook — flags that Claude is processing (animation starts)
+- **`PreToolUse`** hook — re-flags processing before each tool call (keeps animation alive during tool execution)
 - **`Stop`** hook — clears the flag (animation stops, clean static display)
 
 This means:
-- While Claude is **writing** → rainbow shifts, shimmer sweeps
+- While Claude is **thinking** → rainbow shifts, shimmer sweeps
+- While Claude is **using tools** (Explore, Bash, etc.) → animation continues
+- While Claude is **writing output** → animation continues
 - While Claude is **idle** → clean static colours, no frozen animation artifacts
 - **Backwards compatible** — without hooks, animation runs on every render (old behaviour)
 
@@ -263,7 +266,7 @@ The update check is:
 ### Lightweight and fast
 
 - **Single Python file** — no dependencies, no pip install, just Python 3.6+
-- **30-second cache** — API is only called once every 30 seconds, cached responses return instantly
+- **60-second cache** — API is only called once every 60 seconds, cached responses return instantly. Configurable: set `cache_ttl_seconds` in your config to `30`, `60`, `80`, or `120`
 - **Zero config needed** — auto-detects your plan and credentials from Claude Code
 
 ### Auto-detected plan
@@ -333,7 +336,7 @@ Claude Code starts
     ↓
 Calls claude_status.py (passes session JSON via stdin)
     ↓
-Check cache (~30s TTL)
+Check cache (~60s TTL)
     ├── Fresh? → Re-render with current animation state
     └── Stale? → Read OAuth token from ~/.claude/.credentials.json
                      ↓
@@ -348,7 +351,7 @@ Animation hooks (automatic):
     Stop             → clear flag             → animation OFF (clean static)
 ```
 
-The status line updates whenever Claude Code's conversation updates (roughly every 300ms), but the API is only hit once every 30 seconds to keep things fast and respectful.
+The status line updates whenever Claude Code's conversation updates (roughly every 300ms), but the API is only hit once every 60 seconds to keep things fast and respectful.
 
 ## Configuration
 
@@ -356,7 +359,7 @@ Edit `config.json` directly or use the CLI flags:
 
 ```json
 {
-  "cache_ttl_seconds": 30,
+  "cache_ttl_seconds": 60,
   "theme": "default",
   "rainbow_bars": true,
   "rainbow_mode": false,
@@ -400,7 +403,26 @@ Edit `config.json` directly or use the CLI flags:
 | `--update` | Pull the latest version from GitHub (shows changelog) |
 | `--config` | Print current configuration summary (includes version, credits, hooks) |
 
-Lower cache TTL values = more frequent API calls. Higher values = faster response but slightly staler data. Default of 30 seconds is a good balance.
+### Cache TTL
+
+The `cache_ttl_seconds` setting controls how often the API is called. Recommended values:
+
+| Value | API calls/hour | Best for |
+|-------|---------------|----------|
+| `30` | ~120 | Frequent updates, active sessions |
+| `60` | ~60 | **Default** — good balance |
+| `80` | ~45 | Light usage |
+| `120` | ~30 | Minimal API calls |
+
+Set it in your config file (`~/.cache/claude-status/config.json` on Linux/Mac, `%LOCALAPPDATA%\claude-status\config.json` on Windows):
+
+```json
+{
+  "cache_ttl_seconds": 60
+}
+```
+
+Lower values = more frequent API calls. Higher values = faster response but slightly staler data.
 
 ## Requirements
 

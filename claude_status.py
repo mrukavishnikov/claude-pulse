@@ -15,7 +15,7 @@ import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 
-DEFAULT_CACHE_TTL = 30
+DEFAULT_CACHE_TTL = 60
 BAR_SIZES = {"small": 4, "medium": 8, "large": 12}
 DEFAULT_BAR_SIZE = "medium"
 FILL = "\u2501"   # ━ (thin horizontal bar)
@@ -1052,6 +1052,18 @@ def _install_hooks_into(settings, script_path):
         submit_hooks.append({"hooks": [start_hook]})
     hooks["UserPromptSubmit"] = submit_hooks
 
+    # Add to PreToolUse — fires before each tool call, keeps animation alive
+    # during the agentic loop (model → tool → model → tool → ...)
+    pretool_hooks = hooks.get("PreToolUse", [])
+    already_pretool = any(
+        h.get("hooks", [{}])[0].get("command", "") == our_cmd
+        if isinstance(h, dict) and "hooks" in h else False
+        for h in pretool_hooks
+    )
+    if not already_pretool:
+        pretool_hooks.append({"hooks": [start_hook]})
+    hooks["PreToolUse"] = pretool_hooks
+
     # Add to Stop — fires when Claude finishes responding
     stop_hooks = hooks.get("Stop", [])
     our_cmd_stop = f'python "{script_path}" --hook-stop'
@@ -1087,10 +1099,11 @@ def install_hooks():
 
     utf8_print(f"{BOLD}Animation hooks installed!{RESET}")
     utf8_print(f"  UserPromptSubmit → --hook-start (animation ON)")
+    utf8_print(f"  PreToolUse       → --hook-start (animation ON — keeps alive during tools)")
     utf8_print(f"  Stop             → --hook-stop  (animation OFF)")
     utf8_print(f"  Settings: {settings_path}")
     utf8_print(f"\nRestart Claude Code for hooks to take effect.")
-    utf8_print(f"The shimmer will now only animate while Claude is writing.")
+    utf8_print(f"The shimmer will now animate while Claude is thinking and using tools.")
 
 
 # ---------------------------------------------------------------------------
