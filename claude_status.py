@@ -34,7 +34,7 @@ BAR_STYLES = {
 }
 DEFAULT_BAR_STYLE = "classic"
 
-# Precompute all bar characters for shimmer detection
+# Precompute all bar characters for rainbow detection
 ALL_BAR_CHARS = set()
 for _f, _e in BAR_STYLES.values():
     ALL_BAR_CHARS.add(_f)
@@ -154,7 +154,7 @@ THEME_DEMO_TEXT = {
 }
 
 # Recommended text colour per theme — chosen for good contrast with bars
-# so the shimmer (white overlay on coloured text) is clearly visible
+# so the rainbow has something to contrast against
 THEME_TEXT_DEFAULTS = {
     "default": "white",
     "ocean":   "white",
@@ -181,11 +181,11 @@ DEFAULT_SHOW = {
     "streak": False,
     "model": True,
     "context": True,
+    "claude_update": True,
 }
 
 # Sparkline and history constants
 SPARKLINE_CHARS = "\u2581\u2582\u2583\u2584\u2585\u2586\u2587\u2588"
-SPARKLINE_DEFAULT_WIDTH = 8
 HISTORY_MAX_AGE = 86400  # 24 hours in seconds
 
 
@@ -271,7 +271,7 @@ def rainbow_colorize(text, color_all=True, shimmer=True):
 
             # Vivid rainbow: high saturation and brightness
             r, g, b = hsv_to_rgb(hue, 0.92, 0.95)
-            result.append(f"\033[38;2;{r};{g};{b}m{text[i]}")
+            result.append(f"\033[38;2;{r};{g};{b}m{text[i]}\033[0m")
 
         visible_idx += 1
         i += 1
@@ -290,7 +290,7 @@ def resolve_text_color(config):
 
 
 def apply_text_color(line, color_code):
-    """Wrap non-bar text in a base colour so the shimmer has something to contrast against.
+    """Wrap non-bar text in a base colour so the rainbow has something to contrast against.
 
     Prepends the colour, re-applies it after every RESET, and appends a final RESET.
     Bar colours override this inline; after their RESET the base colour resumes.
@@ -301,96 +301,6 @@ def apply_text_color(line, color_code):
     # then append a final reset at the end
     return color_code + line.replace("\033[0m", "\033[0m" + color_code) + "\033[0m"
 
-
-def apply_shimmer(text):
-    """Post-process themed text with sweeping brightness waves.
-
-    2-3 bright bands sweep left-to-right across the full status line,
-    completing full passes so the animation is clearly visible.
-
-    Skips bar characters (only animates labels, percentages, separators).
-    """
-    SWEEP_SPEED = 30.0  # chars per second — full sweep in ~2s
-    BAND_WIDTH = 18     # how wide each bright band is (in characters)
-    NUM_WAVES = 2       # number of simultaneous bright bands
-
-    now = time.time()
-
-    # Count visible characters
-    visible_count = 0
-    idx = 0
-    while idx < len(text):
-        if text[idx] == "\033":
-            while idx < len(text) and text[idx] != "m":
-                idx += 1
-            idx += 1
-            continue
-        visible_count += 1
-        idx += 1
-
-    if visible_count == 0:
-        return text
-
-    # Sweep loop length — band travels from off-screen left to off-screen right
-    sweep_length = visible_count + BAND_WIDTH * 2
-
-    # Precompute wave center positions for each band
-    wave_centers = []
-    for w in range(NUM_WAVES):
-        offset = w * (sweep_length / NUM_WAVES)
-        pos = (now * SWEEP_SPEED + offset) % sweep_length - BAND_WIDTH
-        wave_centers.append(pos)
-
-    result = []
-    visible_idx = 0
-    # Track all active ANSI codes so we can restore after shimmer chars
-    active_codes = []
-    i = 0
-
-    while i < len(text):
-        if text[i] == "\033":
-            j = i
-            while j < len(text) and text[j] != "m":
-                j += 1
-            seq = text[i : j + 1]
-            result.append(seq)
-            # Track ANSI state
-            if seq == "\033[0m":
-                active_codes = []
-            else:
-                active_codes.append(seq)
-            i = j + 1
-            continue
-
-        is_bar_char = text[i] in ALL_BAR_CHARS
-        if not is_bar_char:
-            # Find the strongest wave influence on this character
-            best_wave = 0.0
-            for center in wave_centers:
-                dist = abs(visible_idx - center)
-                if dist < BAND_WIDTH:
-                    w = 1.0 - (dist / BAND_WIDTH)
-                    w = w * w  # smooth quadratic falloff
-                    if w > best_wave:
-                        best_wave = w
-
-            # Base brightness 140, peaks at 255 — always visible,
-            # bright bands clearly sweep across
-            brightness = int(140 + best_wave * 115)
-            result.append(f"\033[38;2;{brightness};{brightness};{brightness}m")
-            result.append(text[i])
-            # Restore original ANSI state
-            if active_codes:
-                result.extend(active_codes)
-            else:
-                result.append("\033[0m")
-        else:
-            result.append(text[i])
-
-        visible_idx += 1
-        i += 1
-
-    return "".join(result)
 
 
 # ---------------------------------------------------------------------------
@@ -571,6 +481,7 @@ def get_cache_path():
 UPDATE_CHECK_TTL = 3600  # check at most once per hour
 GITHUB_REPO = "NoobyGains/claude-pulse"
 _GIT_PATH = shutil.which("git") or "git"  # resolve once at import time
+_CLAUDE_PATH = shutil.which("claude")  # resolve once at import time
 
 
 def get_local_commit():
@@ -655,6 +566,84 @@ def append_update_indicator(line, config=None):
                 return line
         if check_for_update():
             return line + f" {BRIGHT_YELLOW}\u2191 Pulse Update{RESET}"
+    except Exception:
+        pass  # never break the status line for an update check
+    return line
+
+
+def check_claude_code_update():
+    """Check if a newer Claude Code version is available on npm. Returns True/False/None.
+
+    Cached for 1 hour. Fully silent on any error — never blocks the status line.
+    """
+    if not _CLAUDE_PATH:
+        return None
+
+    state_dir = get_state_dir()
+    update_cache = state_dir / "claude_code_update.json"
+
+    # Read cached result
+    try:
+        with open(update_cache, "r", encoding="utf-8") as f:
+            cached = json.load(f)
+        if time.time() - cached.get("timestamp", 0) < UPDATE_CHECK_TTL:
+            return cached.get("update_available", False)
+    except (FileNotFoundError, json.JSONDecodeError, KeyError):
+        pass
+
+    # Get installed version
+    try:
+        result = subprocess.run(
+            [_CLAUDE_PATH, "--version"],
+            capture_output=True, text=True, timeout=3,
+        )
+        if result.returncode != 0:
+            return None
+        # Parse "2.1.37 (Claude Code)" → "2.1.37"
+        local_version = result.stdout.strip().split()[0]
+    except Exception:
+        return None
+
+    # Get latest version from npm registry
+    try:
+        req = urllib.request.Request(
+            "https://registry.npmjs.org/@anthropic-ai/claude-code/latest",
+            headers={"User-Agent": "claude-pulse-update-checker"},
+        )
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read(100_000).decode("utf-8"))
+        remote_version = _sanitize(str(data.get("version", "")))
+        if not remote_version:
+            return None
+    except Exception:
+        return None
+
+    update_available = _sanitize(local_version) != remote_version
+
+    # Cache the result
+    try:
+        with _secure_open_write(update_cache) as f:
+            json.dump({
+                "timestamp": time.time(),
+                "update_available": update_available,
+                "local": _sanitize(local_version),
+                "remote": remote_version,
+            }, f)
+    except OSError:
+        pass
+
+    return update_available
+
+
+def append_claude_update_indicator(line, config=None):
+    """Append a visible Claude Code update indicator if a newer version is available."""
+    try:
+        if config:
+            show = config.get("show", DEFAULT_SHOW)
+            if not show.get("claude_update", True):
+                return line
+        if check_claude_code_update():
+            return line + f" {BRIGHT_YELLOW}\u2191 Claude Update{RESET}"
     except Exception:
         pass  # never break the status line for an update check
     return line
@@ -1023,8 +1012,7 @@ def _render_sparkline(samples, key="s", width=8):
     chars = []
     for s in recent:
         val = s.get(key, 0)
-        # Map 0-100 to index 0-6 (avoid █ at index 7 — it's in ALL_BAR_CHARS
-        # and would be skipped by apply_shimmer)
+        # Map 0-100 to index 0-6 (avoid █ at index 7 — it's in ALL_BAR_CHARS)
         idx = min(6, max(0, int(val / 100 * 6.99)))
         chars.append(SPARKLINE_CHARS[idx])
     return "".join(chars)
@@ -1966,6 +1954,32 @@ def cmd_print_config():
             utf8_print(f"  Update:       {GREEN}up to date (v{VERSION}){RESET}")
         else:
             utf8_print(f"  Update:       {DIM}check failed{RESET}")
+    # Claude Code update check
+    if _CLAUDE_PATH:
+        try:
+            result = subprocess.run(
+                [_CLAUDE_PATH, "--version"],
+                capture_output=True, text=True, timeout=3,
+            )
+            if result.returncode == 0:
+                local_ver = _sanitize(result.stdout.strip().split()[0])
+                cc_update = check_claude_code_update()
+                if cc_update:
+                    # Read cached remote version
+                    try:
+                        cc_cache_path = get_state_dir() / "claude_code_update.json"
+                        with open(cc_cache_path, "r", encoding="utf-8") as f:
+                            cc_cached = json.load(f)
+                        remote_ver = cc_cached.get("remote", "?")
+                    except Exception:
+                        remote_ver = "newer"
+                    utf8_print(f"  Claude Code:  {BRIGHT_YELLOW}{local_ver} \u2192 {remote_ver} available{RESET}")
+                elif cc_update is False:
+                    utf8_print(f"  Claude Code:  {GREEN}{local_ver} (up to date){RESET}")
+                else:
+                    utf8_print(f"  Claude Code:  {DIM}{local_ver} (check failed){RESET}")
+        except Exception:
+            utf8_print(f"  Claude Code:  {DIM}check failed{RESET}")
     show = config.get("show", DEFAULT_SHOW)
 
     # Extra credits status — check the API
@@ -2353,6 +2367,7 @@ def main():
         else:
             line = cached.get("line", "")
         line = append_update_indicator(line, config)
+        line = append_claude_update_indicator(line, config)
         sys.stdout.buffer.write((line + RESET + "\n").encode("utf-8"))
         return
 
@@ -2401,6 +2416,7 @@ def main():
         except Exception:
             pass
     line = append_update_indicator(line, config)
+    line = append_claude_update_indicator(line, config)
     sys.stdout.buffer.write((line + RESET + "\n").encode("utf-8"))
 
 

@@ -169,7 +169,7 @@ python claude_status.py --show timer,plan
 python claude_status.py --config
 ```
 
-**Available parts:** `session`, `weekly`, `plan`, `timer`, `extra`, `update`, `sparkline`, `runway`, `status_message`, `streak`, `model`, `context`
+**Available parts:** `session`, `weekly`, `plan`, `timer`, `extra`, `update`, `claude_update`, `sparkline`, `runway`, `status_message`, `streak`, `model`, `context`
 
 ### `/pulse` Slash Command
 
@@ -204,6 +204,14 @@ Or from the command line:
 ```bash
 python claude_status.py --update
 ```
+
+### Claude Code Update Indicator
+
+claude-pulse also checks if your Claude Code CLI is outdated by querying the npm registry once per hour (cached, 3-second timeout). If a newer version is available, a bright yellow `↑ Claude Update` indicator appears alongside your status line.
+
+- **Automatic** — checks `claude --version` against the latest npm release
+- **Hideable** — `--hide claude_update` to suppress, `--show claude_update` to bring back
+- **No action needed** — it's just an indicator; update Claude Code yourself when ready
 
 ### Lightweight and fast
 
@@ -318,6 +326,7 @@ Edit `config.json` directly or use the CLI flags:
     "timer": true,
     "extra": false,
     "update": true,
+    "claude_update": true,
     "sparkline": false,
     "runway": false,
     "status_message": false,
@@ -381,6 +390,7 @@ No API key required — claude-pulse uses your existing Claude Code login (OAuth
 | Theme not applying | Clear the cache file after changing themes so the next render uses the new colours |
 | Context/model not showing | Context and model appear after your first message — Claude Code provides this data via stdin once the session is active |
 | `↑ Pulse Update` showing | Run `/pulse update` in Claude Code, or `python claude_status.py --update` from the command line. To hide the notification: `--hide update` |
+| `↑ Claude Update` showing | Update Claude Code with `npm update -g @anthropic-ai/claude-code`. To hide the notification: `--hide claude_update` |
 
 ## Extra Features
 

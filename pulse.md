@@ -277,7 +277,7 @@ Options:
 
 Then apply the appropriate `--show` and `--hide` commands based on what the user selected vs deselected.
 
-Mention: "You can also enable **extra usage** tracking (bonus/overflow credits) with `/pulse show extra`."
+Mention: "You can also enable **extra usage** tracking (bonus/overflow credits) with `/pulse show extra`, or hide the **Claude Code update** indicator with `/pulse hide claude_update`."
 
 ---
 
