@@ -4,13 +4,9 @@
 </p>
 
 <p align="center">
-  <img src="screenshot.png" alt="claude-pulse in action" width="700">
-</p>
-
-<p align="center">
-  <img src="rainbow.png" alt="Rainbow theme" width="500">
+  <img src="assets/demo.gif" alt="claude-pulse themes demo" width="700">
   <br>
-  <sub>Rainbow theme — animated colours that shift while Claude is writing</sub>
+  <sub>8 themes with colour-coded bars that shift green → yellow → red as usage increases</sub>
 </p>
 
 ---
