@@ -192,12 +192,12 @@ If "On", run `--show context`. If "Off", run `--hide context`.
 If credits are **active** (Status: active), ask:
 
 ```
-Question: "You have bonus credits from Claude. How should extra usage appear?"
+Question: "You have extra credits enabled. How should they appear?"
 Header: "Extra credits"
 multiSelect: false
 Options:
-  - "Dynamic (Recommended)" — "Auto-shows when credits are active, hides when not"
-  - "Always show" — "Always display extra credits, even if none are gifted"
+  - "Dynamic (Recommended)" — "Auto-shows when extra credits are active, hides when not"
+  - "Always show" — "Always display the extra credits bar"
   - "Hide" — "Never show extra credits on the status line"
 ```
 
@@ -208,12 +208,12 @@ If they pick "Hide", run `--hide extra`.
 If credits are **not active**, ask a simpler version:
 
 ```
-Question: "If Claude gifts you bonus credits in the future, show them?"
+Question: "Show extra credits on the status bar if enabled in your account?"
 Header: "Extra credits"
 multiSelect: false
 Options:
-  - "Dynamic (Recommended)" — "Auto-shows when credits appear, stays hidden otherwise"
-  - "Hide" — "Never show, even if credits are gifted later"
+  - "Dynamic (Recommended)" — "Auto-shows when extra credits are active, hidden otherwise"
+  - "Hide" — "Never show extra credits"
 ```
 
 If "Dynamic", no command needed (default). If "Hide", run `--hide extra`.
