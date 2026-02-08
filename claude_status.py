@@ -395,6 +395,33 @@ def apply_shimmer(text):
 
 
 # ---------------------------------------------------------------------------
+# Secure file helpers
+# ---------------------------------------------------------------------------
+
+def _secure_mkdir(path):
+    """Create directory with 0o700 permissions on Unix. Normal mkdir on Windows."""
+    path = Path(path)
+    if path.exists():
+        return
+    if sys.platform == "win32":
+        path.mkdir(parents=True, exist_ok=True)
+    else:
+        old_umask = os.umask(0o077)
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+        finally:
+            os.umask(old_umask)
+
+
+def _secure_open_write(filepath):
+    """Open file for writing with 0o600 permissions on Unix. Normal open on Windows."""
+    if sys.platform == "win32":
+        return open(filepath, "w")
+    fd = os.open(str(filepath), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    return os.fdopen(fd, "w")
+
+
+# ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
 
@@ -405,7 +432,7 @@ def get_config_path():
     else:
         base = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
     config_dir = base / "claude-status"
-    config_dir.mkdir(parents=True, exist_ok=True)
+    _secure_mkdir(config_dir)
     return config_dir / "config.json"
 
 
@@ -444,7 +471,7 @@ def save_config(config):
     config_path = get_config_path()
     # Only save user-facing keys, not internal ones
     save_data = {k: v for k, v in config.items() if not k.startswith("_")}
-    with open(config_path, "w") as f:
+    with _secure_open_write(config_path) as f:
         json.dump(save_data, f, indent=2)
 
 
@@ -460,7 +487,7 @@ def get_state_dir():
     else:
         base = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
     state_dir = base / "claude-status"
-    state_dir.mkdir(parents=True, exist_ok=True)
+    _secure_mkdir(state_dir)
     return state_dir
 
 
@@ -518,9 +545,11 @@ def set_processing(active):
     try:
         # Mark that hooks are installed (so we know to check the flag)
         if not marker.exists():
-            marker.write_text("1")
+            with _secure_open_write(marker) as f:
+                f.write("1")
         if active:
-            state_path.write_text("1")
+            with _secure_open_write(state_path) as f:
+                f.write("1")
         else:
             state_path.unlink(missing_ok=True)
     except OSError:
@@ -595,7 +624,7 @@ def check_for_update():
 
     # Cache the result
     try:
-        with open(update_cache, "w") as f:
+        with _secure_open_write(update_cache) as f:
             json.dump({
                 "timestamp": time.time(),
                 "update_available": update_available,
@@ -691,6 +720,22 @@ def cmd_update():
             cwd=str(repo_dir),
         )
         if result.returncode == 0:
+            # Verify post-pull HEAD matches the expected remote commit
+            if remote is not None:
+                post_pull_head = get_local_commit()
+                if post_pull_head and post_pull_head != remote:
+                    utf8_print(f"  {RED}Integrity check failed: HEAD after pull ({post_pull_head[:8]}) does not match expected remote ({remote[:8]}).{RESET}")
+                    utf8_print(f"  Rolling back to previous commit ({pre_pull_commit[:8]})...")
+                    try:
+                        subprocess.run(
+                            ["git", "reset", "--hard", pre_pull_commit],
+                            capture_output=True, text=True, timeout=10,
+                            cwd=str(repo_dir),
+                        )
+                    except Exception:
+                        pass
+                    utf8_print(f"  {YELLOW}Update aborted. Please try again or re-clone the repository.{RESET}")
+                    return
             # Read the new version from the updated file on disk
             new_version = _read_version_from_file(script_path)
             if new_version and new_version != VERSION:
@@ -752,7 +797,7 @@ def write_cache(cache_path, line, usage=None, plan=None):
             data["usage"] = usage
         if plan is not None:
             data["plan"] = plan
-        with open(cache_path, "w") as f:
+        with _secure_open_write(cache_path) as f:
             json.dump(data, f)
     except OSError:
         pass
@@ -1018,8 +1063,8 @@ def install_status_line():
     # Animation lifecycle hooks — animate only while Claude is writing
     _install_hooks_into(settings, script_path)
 
-    settings_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(settings_path, "w") as f:
+    _secure_mkdir(settings_path.parent)
+    with _secure_open_write(settings_path) as f:
         json.dump(settings, f, indent=2)
 
     print(f"Installed status line + animation hooks to {settings_path}")
@@ -1094,7 +1139,7 @@ def install_hooks():
 
     _install_hooks_into(settings, script_path)
 
-    with open(settings_path, "w") as f:
+    with _secure_open_write(settings_path) as f:
         json.dump(settings, f, indent=2)
 
     utf8_print(f"{BOLD}Animation hooks installed!{RESET}")
@@ -1637,7 +1682,7 @@ def main():
     animate = config.get("animate", True)
 
     try:
-        sys.stdin.read()
+        sys.stdin.read(65536)
     except Exception:
         pass
 
