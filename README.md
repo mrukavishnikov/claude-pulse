@@ -436,6 +436,16 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 ---
 
+## Support
+
+If claude-pulse is useful to you, consider buying me a coffee:
+
+<a href="https://buymeacoffee.com/noobygains">
+  <img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=☕&slug=noobygains&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" />
+</a>
+
+---
+
 <p align="center">
   Made by <a href="https://www.reddit.com/user/PigeonDroid/">PigeonDroid</a>
 </p>
