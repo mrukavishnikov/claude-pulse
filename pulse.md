@@ -263,7 +263,20 @@ The user can also pick "Other" and type any symbol (e.g. ¥, ₹, kr, CHF, etc.)
 
 Apply with `--currency <symbol>`.
 
-**Step 9:** Confirm everything:
+**Step 9:** Ask about update notifications:
+
+```
+Question: "Allow claude-pulse to check for updates?"
+Header: "Updates"
+multiSelect: false
+Options:
+  - "Yes (Recommended)" — "Shows a small ↑ indicator when a new version is available. Notification only — never auto-updates."
+  - "No" — "Keep your current version, no update checks. You can always update manually later with /pulse update."
+```
+
+If they pick "Yes", no command needed (default). If "No", run `--hide update`.
+
+**Step 10:** Confirm everything:
 "All set! Your status line is now using **<theme>** with **<text colour>** text and animation **<on/off>**. It'll update on the next refresh (~30s) or restart Claude Code to see it immediately."
 
 If credits were shown, also mention the display format:
