@@ -474,6 +474,10 @@ python claude_status.py --layout standard
 
 Layouts work with all themes, bar sizes, bar styles, and animations.
 
+## License
+
+MIT License. See [LICENSE](LICENSE) for details.
+
 ---
 
 ## Star History
