@@ -15,6 +15,10 @@
 
 ---
 
+> **Works with any Claude subscription** — Pro (£18/mo), Max 5x (£90/mo), or Max 20x (£180/mo). No API key required. Auto-detects your plan and reflects the exact usage shown on [claude.ai/settings/usage](https://claude.ai/settings/usage).
+
+---
+
 ## What is this?
 
 **claude-pulse** adds a live status bar to the bottom of your Claude Code CLI window showing:
@@ -27,8 +31,7 @@
 - **Plan tier** — auto-detected (Pro, Max 5x, Max 20x)
 - **Extra credits** — auto-shows when you have credits enabled in https://claude.ai/settings/usage
 
-No guesswork. No scanning log files. I got tired of checking [claude.ai/settings/usage](https://claude.ai/settings/usage) all the time, so this pulls the exact same numbers via Anthropic's OAuth API.
-I got tried to checking all the time. 
+No guesswork. No scanning log files. It pulls the **exact same numbers** shown on [claude.ai/settings/usage](https://claude.ai/settings/usage) via Anthropic's OAuth API — the same authentication you already use when logged into Claude Code.
 
 ## Quick Start — `/pulse`
 
@@ -204,7 +207,7 @@ python claude_status.py --update
 ### Auto-detected plan
 
 Reads your subscription tier directly from Claude Code's credentials file. Supports:
-- **Pro** — standard plan
+- **Pro** ($20/mo) — standard plan
 - **Max 5x** — 5x Pro usage
 - **Max 20x** — 20x Pro usage
 
@@ -347,8 +350,10 @@ Lower values = more frequent API calls. Higher values = faster response but slig
 ## Requirements
 
 - **Python 3.6+** (no external packages)
-- **Claude Code** with an active Pro or Max subscription
+- **Claude Code** with an active subscription (Pro, Max 5x, or Max 20x)
 - **Windows, macOS, or Linux**
+
+No API key required — claude-pulse uses your existing Claude Code login (OAuth), not the Anthropic API.
 
 ## Troubleshooting
 
