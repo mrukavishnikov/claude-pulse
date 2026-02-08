@@ -500,6 +500,44 @@ If claude-pulse is useful to you, consider buying me a coffee:
 
 ---
 
+## Security
+
+claude-pulse is a read-only status tool. It reads your existing OAuth token to fetch usage data — nothing more. Here's what's built in:
+
+### Token protection
+
+- **Domain-locked** — Tokens are only ever sent to `api.anthropic.com` and `console.anthropic.com`. A hardcoded allowlist (`_authorized_request()`) blocks any other domain at the function level. Even if the code were modified to point at a different URL, the guard would reject it.
+- **Never written to disk** — Tokens are held in memory only. The cache file whitelist explicitly excludes credentials — only `five_hour`, `seven_day`, and `extra_usage` data is persisted.
+- **Never logged** — Tokens never appear in error messages, debug output, or any file.
+- **In-memory refresh** — When a token expires, the refresh happens in memory. The new token is used for the current request and then discarded — it's never written back to your credential store.
+
+### File security
+
+- **Secure writes** — All state files (cache, config, stats, history) are written using `_secure_open_write()` with `0o600` permissions on Unix (owner read/write only).
+- **Symlink protection** — Before writing, symlinks are detected and removed. On Unix, `O_NOFOLLOW` prevents following symlinks. On Windows, path resolution is verified to prevent junction attacks.
+- **No shell execution** — All subprocess calls use list arguments (never `shell=True`), preventing command injection.
+
+### Input sanitization
+
+- **ANSI injection prevention** — All API-sourced strings (plan names, model IDs, reset times) and config-sourced values (prefixes, formats, currency) pass through `_sanitize()` before terminal display, stripping escape sequences.
+- **CLI argument sanitization** — User-provided arguments are sanitized before being echoed back in error messages.
+- **Error message safety** — Exception details are never exposed to users. Error messages use `type(e).__name__` at most, never `str(e)`.
+
+### Update safety
+
+- **Origin verification** — The `--update` command verifies the git remote URL matches the expected repository before pulling.
+- **Fail-closed** — If the GitHub API is unreachable during an update check, the update is aborted rather than proceeding blindly.
+
+### What claude-pulse does NOT do
+
+- Does not send data to any third-party service
+- Does not collect analytics or telemetry
+- Does not modify your Claude Code installation
+- Does not store or transmit your conversations
+- Does not require any permissions beyond reading your existing OAuth token
+
+---
+
 <p align="center">
   Made by <a href="https://www.reddit.com/user/PigeonDroid/">PigeonDroid</a>
 </p>
