@@ -474,22 +474,6 @@ python claude_status.py --layout standard
 
 Layouts work with all themes, bar sizes, bar styles, and animations.
 
-## Upgrading from v2.1.x
-
-v2.2.0 simplifies animation and removes hooks:
-
-- **Hooks are removed automatically** — the first run after upgrading cleans any claude-pulse hooks from your `settings.json`
-- **`rainbow_mode` and `rainbow_bars` settings removed** — replaced by a single `--animate on/off` toggle
-- **`--animate on`** = rainbow colours flow across the status bar (any theme)
-- **`--animate off`** = static theme colours (default)
-- **Context window and model name** now shown by default
-
-No action needed — the upgrade is automatic when you run `/pulse update`.
-
-## License
-
-MIT License. See [LICENSE](LICENSE) for details.
-
 ---
 
 ## Star History
