@@ -18,7 +18,7 @@
 <p align="center">
   <img src="assets/update.gif" alt="Update notification demo" width="700">
   <br>
-  <sub>Update notification — cycles through all 10 themes</sub>
+  <sub>Automatic update notification — appears when a new version is available</sub>
 </p>
 
 ---
