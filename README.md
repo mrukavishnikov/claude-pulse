@@ -6,7 +6,7 @@
 <p align="center">
   <img src="assets/demo.gif" alt="claude-pulse themes demo" width="700">
   <br>
-  <sub>8 themes with colour-coded bars that shift green → yellow → red as usage increases</sub>
+  <sub>10 built-in themes with colour-coded bars that shift green → yellow → red as usage increases</sub>
 </p>
 
 ---
@@ -72,6 +72,12 @@ Preview them live in Claude Code with `/pulse show`, or from the command line wi
 ### Rainbow Animation
 
 Turn on animation and rainbow colours flow across your status bar while Claude is active:
+
+<p align="center">
+  <img src="assets/rainbow.gif" alt="Rainbow animation demo" width="700">
+  <br>
+  <sub>Rainbow animation — enable with <code>--animate on</code></sub>
+</p>
 
 ```bash
 # Enable rainbow animation (works with any theme)
@@ -182,6 +188,12 @@ All the CLI flags below also work as `/pulse` subcommands inside Claude Code:
 ### Automatic Update Notifications
 
 claude-pulse checks GitHub for new releases once per hour (cached, 3-second timeout). If a newer version is available, a bright yellow `↑ Pulse Update` indicator appears on your status line.
+
+<p align="center">
+  <img src="assets/update.gif" alt="Update notification demo" width="700">
+  <br>
+  <sub>Update notification — cycles through all 10 themes</sub>
+</p>
 
 Update right from Claude Code:
 ```
