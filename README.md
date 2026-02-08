@@ -476,7 +476,7 @@ Layouts work with all themes, bar sizes, bar styles, and animations.
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+Source Available — free to use and modify, but not to redistribute. See [LICENSE](LICENSE) for details.
 
 ---
 
