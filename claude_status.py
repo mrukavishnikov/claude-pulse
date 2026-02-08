@@ -2163,7 +2163,8 @@ def main():
                 pass
             utf8_print(f"Context format: {BOLD}{val}{RESET}")
             if val == "tokens":
-                utf8_print(f"{DIM}  Window size is reported by Claude Code (typically 200k){RESET}")
+                utf8_print(f"{DIM}  Note: Claude Code uses a 200k context window.")
+                utf8_print(f"  The 1M window is an API-only beta feature and not used here.{RESET}")
         else:
             utf8_print("Usage: --context-format percent|tokens")
         return
