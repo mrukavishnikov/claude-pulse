@@ -1976,7 +1976,7 @@ def cmd_print_config():
                         remote_ver = _sanitize(cc_cached.get("remote", "?"))
                     except Exception:
                         remote_ver = "newer"
-                    utf8_print(f"  Claude Code:  {BRIGHT_YELLOW}{local_ver} \u2192 {remote_ver} available{RESET}")
+                    utf8_print(f"  Claude Code:  {BRIGHT_YELLOW}{local_ver} \u2192 {remote_ver} available{RESET}  (run {BOLD}claude update{RESET} in a new terminal)")
                 elif cc_update is False:
                     utf8_print(f"  Claude Code:  {GREEN}{local_ver} (up to date){RESET}")
                 else:

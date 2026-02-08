@@ -211,7 +211,7 @@ claude-pulse also checks if your Claude Code CLI is outdated by querying the npm
 
 - **Automatic** — checks `claude --version` against the latest npm release
 - **Hideable** — `--hide claude_update` to suppress, `--show claude_update` to bring back
-- **No action needed** — it's just an indicator; update Claude Code yourself when ready
+- **To update** — run `claude update` in a new terminal (native installs auto-update on restart). See the [Claude Code setup docs](https://code.claude.com/docs/en/setup) for details
 
 ### Lightweight and fast
 
@@ -390,7 +390,7 @@ No API key required — claude-pulse uses your existing Claude Code login (OAuth
 | Theme not applying | Clear the cache file after changing themes so the next render uses the new colours |
 | Context/model not showing | Context and model appear after your first message — Claude Code provides this data via stdin once the session is active |
 | `↑ Pulse Update` showing | Run `/pulse update` in Claude Code, or `python claude_status.py --update` from the command line. To hide the notification: `--hide update` |
-| `↑ Claude Update` showing | Update Claude Code with `npm update -g @anthropic-ai/claude-code`. To hide the notification: `--hide claude_update` |
+| `↑ Claude Update` showing | Run `claude update` in a new terminal, or restart Claude Code (native installs auto-update). See [setup docs](https://code.claude.com/docs/en/setup). To hide: `--hide claude_update` |
 
 ## Extra Features
 
