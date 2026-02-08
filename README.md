@@ -277,24 +277,19 @@ If you upgrade your plan, just restart Claude Code and it picks up the new tier 
 
 ## Installation
 
-### Option A — Plugin Marketplace (recommended)
+### Option A — Plugin Marketplace
 
-Install directly inside Claude Code with two commands:
+> **Coming soon** — claude-pulse has been submitted to the Claude Code Plugin Directory and is pending review. Once accepted, you'll be able to install with the commands below. For now, use **Option B** (manual install).
 
 ```
 /plugin marketplace add NoobyGains/claude-pulse
 /plugin install claude-pulse@claude-pulse
-```
-
-Then run the one-time setup:
-
-```
 /claude-pulse:setup
 ```
 
 Restart Claude Code. Done! Use `/claude-pulse:pulse` to configure themes.
 
-### Option B — Manual Install
+### Option B — Manual Install (recommended for now)
 
 #### 1. Clone the repo
 
