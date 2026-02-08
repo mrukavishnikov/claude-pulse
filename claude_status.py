@@ -848,26 +848,15 @@ def write_cache(cache_path, line, usage=None, plan=None):
 # Credentials & API
 # ---------------------------------------------------------------------------
 
-def get_credentials():
-    """Read OAuth token from credentials file, macOS Keychain, or env var."""
-
-    def _extract(data):
-        oauth = data.get("claudeAiOauth", {})
-        token = oauth.get("accessToken")
-        tier = oauth.get("rateLimitTier", "")
-        if not token:
-            return None, None
-        plan = PLAN_NAMES.get(tier, _sanitize(tier.replace("default_claude_", "").replace("_", " ").title()))
-        return token, plan
-
+def _read_credential_data():
+    """Read raw credential data from file or macOS Keychain. Returns (dict, source)."""
     # 1. File-based (~/.claude/.credentials.json)
     creds_path = Path.home() / ".claude" / ".credentials.json"
     try:
         with open(creds_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        token, plan = _extract(data)
-        if token:
-            return token, plan
+        if data.get("claudeAiOauth", {}).get("accessToken"):
+            return data, "file"
     except (FileNotFoundError, json.JSONDecodeError, KeyError):
         pass
 
@@ -881,18 +870,113 @@ def get_credentials():
             )
             if result.returncode == 0 and result.stdout.strip():
                 data = json.loads(result.stdout.strip())
-                token, plan = _extract(data)
-                if token:
-                    return token, plan
+                if data.get("claudeAiOauth", {}).get("accessToken"):
+                    return data, "keychain"
         except (subprocess.TimeoutExpired, json.JSONDecodeError, OSError, ValueError):
             pass
 
-    # 3. Environment variable fallback (all platforms)
+    return None, None
+
+
+def _extract_credentials(data):
+    """Extract token and plan from credential data dict."""
+    if not data:
+        return None, None
+    oauth = data.get("claudeAiOauth", {})
+    token = oauth.get("accessToken")
+    tier = oauth.get("rateLimitTier", "")
+    if not token:
+        return None, None
+    plan = PLAN_NAMES.get(tier, _sanitize(tier.replace("default_claude_", "").replace("_", " ").title()))
+    return token, plan
+
+
+def _save_credential_data(data, source):
+    """Write updated credential data back to the original source."""
+    try:
+        if source == "file":
+            creds_path = Path.home() / ".claude" / ".credentials.json"
+            with _secure_open_write(creds_path) as f:
+                json.dump(data, f)
+        elif source == "keychain" and sys.platform == "darwin":
+            import getpass
+            username = getpass.getuser()
+            json_str = json.dumps(data)
+            subprocess.run(
+                ["/usr/bin/security", "delete-generic-password",
+                 "-s", "Claude Code-credentials", "-a", username],
+                capture_output=True, timeout=5,
+            )
+            subprocess.run(
+                ["/usr/bin/security", "add-generic-password",
+                 "-s", "Claude Code-credentials", "-a", username,
+                 "-w", json_str],
+                capture_output=True, timeout=5,
+            )
+    except Exception:
+        pass  # best-effort — Claude Code will overwrite on next login anyway
+
+
+def _refresh_oauth_token(refresh_token):
+    """Use refresh token to obtain a new access token. Returns new token data or None."""
+    try:
+        body = json.dumps({
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            "https://console.anthropic.com/v1/oauth/token",
+            data=body,
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read(100_000))
+    except Exception:
+        return None
+
+
+def get_credentials():
+    """Read OAuth token from credentials file, macOS Keychain, or env var."""
+    data, source = _read_credential_data()
+    if data:
+        token, plan = _extract_credentials(data)
+        if token:
+            return token, plan
+
+    # Environment variable fallback (all platforms)
     env_token = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN")
     if env_token:
         return env_token, ""
 
     return None, None
+
+
+def refresh_and_retry(plan):
+    """Attempt to refresh expired OAuth token. Returns (new_token, plan) or (None, plan)."""
+    data, source = _read_credential_data()
+    if not data:
+        return None, plan
+    oauth = data.get("claudeAiOauth", {})
+    refresh_token = oauth.get("refreshToken")
+    if not refresh_token:
+        return None, plan
+
+    token_data = _refresh_oauth_token(refresh_token)
+    if not token_data or "access_token" not in token_data:
+        return None, plan
+
+    # Update credential data with new token
+    oauth["accessToken"] = token_data["access_token"]
+    if "refresh_token" in token_data:
+        oauth["refreshToken"] = token_data["refresh_token"]
+    if "expires_in" in token_data:
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=token_data["expires_in"])
+        oauth["expiresAt"] = expires_at.isoformat()
+    data["claudeAiOauth"] = oauth
+    _save_credential_data(data, source)
+
+    return token_data["access_token"], plan
 
 
 def fetch_usage(token):
@@ -2521,7 +2605,17 @@ def main():
     except urllib.error.HTTPError as e:
         usage = None
         if e.code == 401:
-            line = "Token expired \u2014 restart Claude to refresh"
+            # Try to refresh the expired token
+            new_token, plan = refresh_and_retry(plan)
+            if new_token:
+                try:
+                    usage = fetch_usage(new_token)
+                    line = build_status_line(usage, plan, config, stdin_ctx)
+                except Exception:
+                    usage = None
+                    line = "Token refresh failed \u2014 restart Claude to re-login"
+            else:
+                line = "Token expired \u2014 restart Claude to refresh"
         elif e.code == 403:
             line = "Access denied \u2014 check your subscription"
         else:
