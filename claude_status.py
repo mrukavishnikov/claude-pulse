@@ -707,7 +707,7 @@ def cmd_update():
         if not any(origin_url.endswith(p) for p in expected_paths):
             utf8_print(f"  {RED}Origin URL does not match expected repository.{RESET}")
             utf8_print(f"  Expected: {GITHUB_REPO}")
-            utf8_print(f"  Got:      {origin_url}")
+            utf8_print(f"  Got:      {_sanitize(origin_url)}")
             return
     except Exception:
         utf8_print(f"  {RED}Could not verify git remote.{RESET}")
@@ -776,14 +776,14 @@ def cmd_update():
                 utf8_print(f"  {YELLOW}Update aborted. Please try again or re-clone the repository.{RESET}")
                 return
             # Read the new version from the updated file on disk
-            new_version = _read_version_from_file(script_path)
+            new_version = _sanitize(_read_version_from_file(script_path) or "")
             if new_version and new_version != VERSION:
                 utf8_print(f"  {GREEN}Updated to v{new_version}!{RESET}")
             else:
                 utf8_print(f"  {GREEN}Updated successfully!{RESET}")
             if result.stdout.strip():
                 for ln in result.stdout.strip().split("\n"):
-                    utf8_print(f"  {DIM}{ln}{RESET}")
+                    utf8_print(f"  {DIM}{_sanitize(ln)}{RESET}")
             # Show changelog — commits between old HEAD and new HEAD
             if pre_pull_commit:
                 try:
@@ -795,7 +795,7 @@ def cmd_update():
                     if log_result.returncode == 0 and log_result.stdout.strip():
                         utf8_print(f"\n  {BOLD}Changelog:{RESET}")
                         for ln in log_result.stdout.strip().split("\n"):
-                            utf8_print(f"    {DIM}{ln}{RESET}")
+                            utf8_print(f"    {DIM}{_sanitize(ln)}{RESET}")
                 except Exception:
                     pass
             # Clear all caches so the update indicator disappears immediately
@@ -810,7 +810,7 @@ def cmd_update():
             utf8_print(f"  {RED}Update failed:{RESET}")
             if result.stderr.strip():
                 for ln in result.stderr.strip().split("\n"):
-                    utf8_print(f"  {DIM}{ln}{RESET}")
+                    utf8_print(f"  {DIM}{_sanitize(ln)}{RESET}")
     except subprocess.TimeoutExpired:
         utf8_print(f"  {RED}Timed out. Check your network connection.{RESET}")
     except Exception as e:
@@ -1331,7 +1331,7 @@ def cmd_stats():
     current, longest = _calculate_streak(stats.get("daily_dates", []), today)
 
     utf8_print(f"\n{BOLD}claude-pulse stats{RESET}\n")
-    utf8_print(f"  First seen:     {stats.get('first_seen', 'unknown')}")
+    utf8_print(f"  First seen:     {_sanitize(str(stats.get('first_seen', 'unknown')))}")
     utf8_print(f"  Total sessions: {stats.get('total_sessions', 0)}")
     utf8_print(f"  Days active:    {len(set(stats.get('daily_dates', [])))}")
     utf8_print(f"  Current streak: {current}d")
@@ -1929,7 +1929,7 @@ def cmd_show_all():
 def cmd_set_theme(name):
     """Set the active theme and save to config."""
     if name not in THEMES:
-        utf8_print(f"Unknown theme: {name}")
+        utf8_print(f"Unknown theme: {_sanitize(name)}")
         utf8_print(f"Available: {', '.join(THEMES.keys())}")
         return
     config = load_config()
@@ -1955,7 +1955,7 @@ def cmd_show(parts_str):
     valid = set(DEFAULT_SHOW.keys())
     for part in parts:
         if part not in valid:
-            utf8_print(f"Unknown part: {part} (valid: {', '.join(sorted(valid))})")
+            utf8_print(f"Unknown part: {_sanitize(part)} (valid: {', '.join(sorted(valid))})")
             return
     for part in parts:
         config["show"][part] = True
@@ -1973,7 +1973,7 @@ def cmd_hide(parts_str):
     valid = set(DEFAULT_SHOW.keys())
     for part in parts:
         if part not in valid:
-            utf8_print(f"Unknown part: {part} (valid: {', '.join(sorted(valid))})")
+            utf8_print(f"Unknown part: {_sanitize(part)} (valid: {', '.join(sorted(valid))})")
             return
     for part in parts:
         config["show"][part] = False
@@ -1998,7 +1998,7 @@ def cmd_print_config():
     utf8_print(f"\n{BOLD}claude-pulse v{VERSION}{RESET}\n")
     utf8_print(f"  Theme:     {theme_name}  {preview}")
     utf8_print(f"  Cache TTL: {config.get('cache_ttl_seconds', DEFAULT_CACHE_TTL)}s")
-    utf8_print(f"  Currency:  {config.get('currency', chr(163))}")
+    utf8_print(f"  Currency:  {_sanitize(config.get('currency', chr(163)))}")
     bs = config.get("bar_size", DEFAULT_BAR_SIZE)
     bw_display = BAR_SIZES.get(bs, BAR_SIZES[DEFAULT_BAR_SIZE])
     utf8_print(f"  Bar size:  {bs} ({bw_display} chars)")
@@ -2171,7 +2171,7 @@ def main():
         if idx + 1 < len(args):
             val = args[idx + 1].lower()
             if val not in TEXT_COLORS and val != "auto":
-                utf8_print(f"Unknown colour: {val}")
+                utf8_print(f"Unknown colour: {_sanitize(val)}")
                 utf8_print(f"Available: auto, {', '.join(TEXT_COLORS.keys())}")
                 return
             config = load_config()
@@ -2201,7 +2201,7 @@ def main():
             elif val in ("off", "false", "no", "0"):
                 anim = False
             else:
-                utf8_print(f"Unknown value: {val}  (use on or off)")
+                utf8_print(f"Unknown value: {_sanitize(val)}  (use on or off)")
                 return
             config = load_config()
             config["animate"] = anim
@@ -2223,7 +2223,7 @@ def main():
         if idx + 1 < len(args):
             val = args[idx + 1].lower()
             if val not in BAR_SIZES:
-                utf8_print(f"Unknown size: {val}")
+                utf8_print(f"Unknown size: {_sanitize(val)}")
                 utf8_print(f"Available: {', '.join(BAR_SIZES.keys())}")
                 return
             config = load_config()
@@ -2248,7 +2248,7 @@ def main():
         if idx + 1 < len(args):
             val = args[idx + 1].lower()
             if val not in BAR_STYLES:
-                utf8_print(f"Unknown style: {val}")
+                utf8_print(f"Unknown style: {_sanitize(val)}")
                 utf8_print(f"Available: {', '.join(BAR_STYLES.keys())}")
                 return
             config = load_config()
@@ -2273,7 +2273,7 @@ def main():
         if idx + 1 < len(args):
             val = args[idx + 1].lower()
             if val not in ("auto", "full", "amount"):
-                utf8_print(f"Unknown value: {val}  (use auto, full, or amount)")
+                utf8_print(f"Unknown value: {_sanitize(val)}  (use auto, full, or amount)")
                 return
             config = load_config()
             config["extra_display"] = val
@@ -2300,7 +2300,7 @@ def main():
         if idx + 1 < len(args):
             val = args[idx + 1].lower()
             if val not in ("percent", "tokens"):
-                utf8_print(f"Unknown format: {val}  (use percent or tokens)")
+                utf8_print(f"Unknown format: {_sanitize(val)}  (use percent or tokens)")
                 return
             config = load_config()
             config["context_format"] = val
@@ -2322,7 +2322,7 @@ def main():
         if idx + 1 < len(args):
             val = args[idx + 1].lower()
             if val not in LAYOUTS:
-                utf8_print(f"Unknown layout: {val}")
+                utf8_print(f"Unknown layout: {_sanitize(val)}")
                 utf8_print(f"Available: {', '.join(LAYOUTS)}")
                 return
             config = load_config()
@@ -2412,7 +2412,7 @@ def main():
         if idx + 1 < len(args):
             val = args[idx + 1].lower()
             if val not in ("fire", "text"):
-                utf8_print(f"Unknown streak style: {val}  (use fire or text)")
+                utf8_print(f"Unknown streak style: {_sanitize(val)}  (use fire or text)")
                 return
             config = load_config()
             config["streak_style"] = val
@@ -2480,7 +2480,7 @@ def main():
     try:
         with open(str(stdin_ctx_path), "r", encoding="utf-8") as f:
             raw_persisted = json.load(f)
-            persisted = {k: v for k, v in raw_persisted.items() if k in _STDIN_CTX_KEYS}
+            persisted = {k: _sanitize(str(v)) if isinstance(v, str) else v for k, v in raw_persisted.items() if k in _STDIN_CTX_KEYS}
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         pass
     if stdin_ctx:
