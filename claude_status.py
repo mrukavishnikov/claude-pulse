@@ -2272,19 +2272,23 @@ def main():
 
     # Persist stdin context (model, context %) in a separate file so it
     # survives across refreshes that don't receive stdin data from Claude Code.
+    # Merge new data into persisted data so partial updates (e.g. model but
+    # no context_pct during thinking) don't wipe previously known fields.
     stdin_ctx_path = get_state_dir() / "stdin_ctx.json"
+    persisted = {}
+    try:
+        with open(str(stdin_ctx_path), "r", encoding="utf-8") as f:
+            persisted = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
     if stdin_ctx:
+        persisted.update(stdin_ctx)
         try:
             with _secure_open_write(stdin_ctx_path) as f:
-                json.dump(stdin_ctx, f)
+                json.dump(persisted, f)
         except OSError:
             pass
-    elif not stdin_ctx:
-        try:
-            with open(str(stdin_ctx_path), "r", encoding="utf-8") as f:
-                stdin_ctx = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError, OSError):
-            pass
+    stdin_ctx = persisted
 
     cache_path = get_cache_path()
     cached = read_cache(cache_path, cache_ttl)
