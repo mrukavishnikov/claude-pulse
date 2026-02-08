@@ -1,0 +1,18 @@
+{
+  "name": "claude-pulse",
+  "owner": {
+    "name": "PigeonDroid"
+  },
+  "metadata": {
+    "description": "Live usage status bar for Claude Code — session limits, weekly usage, themes, and animations"
+  },
+  "plugins": [
+    {
+      "name": "claude-pulse",
+      "source": ".",
+      "description": "Live usage status bar — session limits, weekly usage, 10 themes, shimmer animations, and auto-updates",
+      "version": "1.9.0",
+      "homepage": "https://github.com/NoobyGains/claude-pulse"
+    }
+  ]
+}

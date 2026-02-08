@@ -277,14 +277,33 @@ If you upgrade your plan, just restart Claude Code and it picks up the new tier 
 
 ## Installation
 
-### 1. Clone the repo
+### Option A — Plugin Marketplace (recommended)
+
+Install directly inside Claude Code with two commands:
+
+```
+/plugin marketplace add NoobyGains/claude-pulse
+/plugin install claude-pulse@claude-pulse
+```
+
+Then run the one-time setup:
+
+```
+/claude-pulse:setup
+```
+
+Restart Claude Code. Done! Use `/claude-pulse:pulse` to configure themes.
+
+### Option B — Manual Install
+
+#### 1. Clone the repo
 
 ```bash
 git clone https://github.com/NoobyGains/claude-pulse.git
 cd claude-pulse
 ```
 
-### 2. Install the status line
+#### 2. Install the status line
 
 ```bash
 python claude_status.py --install
@@ -292,13 +311,13 @@ python claude_status.py --install
 
 This adds the status line **and** animation lifecycle hooks to your `~/.claude/settings.json` automatically.
 
-### 3. Restart Claude Code
+#### 3. Restart Claude Code
 
 Close and reopen Claude Code. The status bar appears at the bottom of your terminal.
 
 That's it. No virtual environments, no dependencies, no build steps.
 
-### 4. (Optional) Install the slash command
+#### 4. (Optional) Install the slash command
 
 Copy the pulse command file to your Claude Code commands directory:
 
