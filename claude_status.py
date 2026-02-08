@@ -796,11 +796,9 @@ def write_cache(cache_path, line, usage=None, plan=None):
 # ---------------------------------------------------------------------------
 
 def get_credentials():
-    """Read OAuth token and plan info from Claude Code's credentials file."""
-    creds_path = Path.home() / ".claude" / ".credentials.json"
-    try:
-        with open(creds_path, "r") as f:
-            data = json.load(f)
+    """Read OAuth token from credentials file, macOS Keychain, or env var."""
+
+    def _extract(data):
         oauth = data.get("claudeAiOauth", {})
         token = oauth.get("accessToken")
         tier = oauth.get("rateLimitTier", "")
@@ -808,8 +806,40 @@ def get_credentials():
             return None, None
         plan = PLAN_NAMES.get(tier, tier.replace("default_claude_", "").replace("_", " ").title())
         return token, plan
+
+    # 1. File-based (~/.claude/.credentials.json)
+    creds_path = Path.home() / ".claude" / ".credentials.json"
+    try:
+        with open(creds_path, "r") as f:
+            data = json.load(f)
+        token, plan = _extract(data)
+        if token:
+            return token, plan
     except (FileNotFoundError, json.JSONDecodeError, KeyError):
-        return None, None
+        pass
+
+    # 2. macOS Keychain fallback
+    if sys.platform == "darwin":
+        try:
+            result = subprocess.run(
+                ["/usr/bin/security", "find-generic-password",
+                 "-s", "Claude Code-credentials", "-w"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                data = json.loads(result.stdout.strip())
+                token, plan = _extract(data)
+                if token:
+                    return token, plan
+        except (subprocess.TimeoutExpired, json.JSONDecodeError, OSError, ValueError):
+            pass
+
+    # 3. Environment variable fallback (all platforms)
+    env_token = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN")
+    if env_token:
+        return env_token, ""
+
+    return None, None
 
 
 def fetch_usage(token):
@@ -850,6 +880,7 @@ def make_bar(pct, theme=None, plain=False, width=None, bar_style=None):
     if width is None:
         width = BAR_SIZES[DEFAULT_BAR_SIZE]
     fill_char, empty_char = BAR_STYLES.get(bar_style or DEFAULT_BAR_STYLE, BAR_STYLES[DEFAULT_BAR_STYLE])
+    pct = pct or 0
     filled = round(pct / 100 * width)
     filled = max(0, min(width, filled))
     if plain:
@@ -896,8 +927,8 @@ def _append_history(usage):
     """Append a usage sample to history and prune old entries."""
     five = usage.get("five_hour", {})
     seven = usage.get("seven_day", {})
-    session_pct = five.get("utilization", 0)
-    weekly_pct = seven.get("utilization", 0)
+    session_pct = five.get("utilization") or 0
+    weekly_pct = seven.get("utilization") or 0
 
     samples = _read_history()
     now = time.time()
@@ -1246,8 +1277,8 @@ def _update_heatmap(usage):
     """Update the activity heatmap with current usage data."""
     five = usage.get("five_hour", {})
     seven = usage.get("seven_day", {})
-    session_pct = five.get("utilization", 0)
-    weekly_pct = seven.get("utilization", 0)
+    session_pct = five.get("utilization") or 0
+    weekly_pct = seven.get("utilization") or 0
 
     # Load existing heatmap
     try:
@@ -1427,7 +1458,7 @@ def build_status_line(usage, plan, config=None, stdin_ctx=None):
     if show.get("session", True):
         five = usage.get("five_hour")
         if five:
-            pct = five.get("utilization", 0)
+            pct = five.get("utilization") or 0
             bar = make_bar(pct, theme, plain=bar_plain, width=bw, bar_style=bstyle)
             reset = format_reset_time(five.get("resets_at")) if show.get("timer", True) else None
             reset_str = f" {reset}" if reset else ""
@@ -1477,7 +1508,7 @@ def build_status_line(usage, plan, config=None, stdin_ctx=None):
     if show.get("weekly", True):
         seven = usage.get("seven_day")
         if seven:
-            pct = seven.get("utilization", 0)
+            pct = seven.get("utilization") or 0
             bar = make_bar(pct, theme, plain=bar_plain, width=bw, bar_style=bstyle)
             if layout == "compact":
                 parts.append(f"W {bar} {pct:.0f}%")
@@ -1493,13 +1524,13 @@ def build_status_line(usage, plan, config=None, stdin_ctx=None):
     extra = usage.get("extra_usage")
     extra_enabled_by_user = show.get("extra", False)
     extra_explicitly_hidden = config.get("extra_hidden", False)
-    extra_has_credits = extra and extra.get("is_enabled") and extra.get("monthly_limit", 0) > 0
+    extra_has_credits = extra and extra.get("is_enabled") and (extra.get("monthly_limit") or 0) > 0
     if extra_enabled_by_user or (extra_has_credits and not extra_explicitly_hidden):
         currency = config.get("currency", "\u00a3")
         if extra and extra.get("is_enabled"):
-            pct = min(extra.get("utilization", 0), 100)
-            used = extra.get("used_credits", 0) / 100  # API returns pence/cents
-            limit = extra.get("monthly_limit", 0) / 100
+            pct = min(extra.get("utilization") or 0, 100)
+            used = (extra.get("used_credits") or 0) / 100  # API returns pence/cents
+            limit = (extra.get("monthly_limit") or 0) / 100
             bar = make_bar(pct, theme, plain=bar_plain, width=bw, bar_style=bstyle)
             if layout == "compact":
                 parts.append(f"E {bar} {currency}{used:.2f}/{currency}{limit:.2f}")
@@ -1835,9 +1866,9 @@ def cmd_print_config():
             _extra = _usage.get("extra_usage")
             if _extra and _extra.get("is_enabled"):
                 currency = config.get("currency", "\u00a3")
-                used = _extra.get("used_credits", 0) / 100  # API returns pence/cents
-                limit = _extra.get("monthly_limit", 0) / 100
-                pct = min(_extra.get("utilization", 0), 100)
+                used = (_extra.get("used_credits") or 0) / 100  # API returns pence/cents
+                limit = (_extra.get("monthly_limit") or 0) / 100
+                pct = min(_extra.get("utilization") or 0, 100)
                 utf8_print(f"    Status:    {GREEN}active{RESET}")
                 utf8_print(f"    Used:      {currency}{used:.2f} / {currency}{limit:.2f} ({pct:.0f}%)")
                 if config.get("extra_hidden"):
@@ -2153,7 +2184,7 @@ def main():
 
     token, plan = get_credentials()
     if not token:
-        line = "No credentials found"
+        line = "No credentials \u2014 run claude and /login"
         write_cache(cache_path, line)
         sys.stdout.buffer.write((line + RESET + "\n").encode("utf-8"))
         return
@@ -2163,10 +2194,24 @@ def main():
         line = build_status_line(usage, plan, config, stdin_ctx)
     except urllib.error.HTTPError as e:
         usage = None
-        line = f"API error: {e.code}"
-    except Exception:
+        if e.code == 401:
+            line = "Token expired \u2014 restart Claude to refresh"
+        elif e.code == 403:
+            line = "Access denied \u2014 check your subscription"
+        else:
+            line = f"API error: {e.code}"
+    except urllib.error.URLError:
         usage = None
-        line = "Usage unavailable"
+        line = "Network error \u2014 retrying next refresh"
+    except json.JSONDecodeError:
+        usage = None
+        line = "API returned invalid data"
+    except (TypeError, ValueError) as e:
+        usage = None
+        line = f"Data error: {e}"
+    except Exception as e:
+        usage = None
+        line = f"Usage unavailable: {type(e).__name__}"
 
     write_cache(cache_path, line, usage, plan)
     if usage is not None:
