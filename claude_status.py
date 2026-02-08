@@ -457,6 +457,7 @@ def load_config():
     data.setdefault("bar_size", DEFAULT_BAR_SIZE)
     data.setdefault("bar_style", DEFAULT_BAR_STYLE)
     data.setdefault("layout", DEFAULT_LAYOUT)
+    data.setdefault("context_format", "percent")
     show = data.get("show", {})
     for key, default in DEFAULT_SHOW.items():
         show.setdefault(key, default)
@@ -911,6 +912,15 @@ def bar_colour(pct, theme):
     return theme["low"]
 
 
+def _fmt_tokens(n):
+    """Format token count: 200000 -> '200k', 1000000 -> '1M'."""
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.0f}M" if n % 1_000_000 == 0 else f"{n / 1_000_000:.1f}M"
+    if n >= 1_000:
+        return f"{n / 1_000:.0f}k" if n % 1_000 == 0 else f"{n / 1_000:.1f}k"
+    return str(n)
+
+
 def make_bar(pct, theme=None, plain=False, width=None, bar_style=None):
     """Build a coloured bar. plain=True returns characters only (no ANSI)."""
     if theme is None:
@@ -1291,6 +1301,13 @@ def _parse_stdin_context(raw_stdin):
         used_pct = ctx.get("used_percentage")
         if used_pct is not None:
             result["context_pct"] = float(used_pct)
+        # Raw token counts for tokens display mode
+        input_tok = ctx.get("total_input_tokens")
+        output_tok = ctx.get("total_output_tokens")
+        ctx_size = ctx.get("context_window_size")
+        if input_tok is not None and ctx_size is not None:
+            result["context_used"] = int(input_tok) + int(output_tok or 0)
+            result["context_limit"] = int(ctx_size)
     except (AttributeError, KeyError, ValueError, TypeError):
         pass
 
@@ -1590,12 +1607,25 @@ def build_status_line(usage, plan, config=None, stdin_ctx=None):
         ctx_pct = stdin_ctx.get("context_pct")
         if ctx_pct is not None:
             ctx_bar = make_bar(ctx_pct, theme, plain=bar_plain, width=bw, bar_style=bstyle)
-            if layout == "compact":
-                parts.append(f"C {ctx_bar} {ctx_pct:.0f}%")
-            elif layout == "minimal":
-                parts.append(f"{ctx_bar} {ctx_pct:.0f}%")
+            ctx_fmt = config.get("context_format", "percent")
+            ctx_used = stdin_ctx.get("context_used")
+            ctx_limit = stdin_ctx.get("context_limit")
+
+            if ctx_fmt == "tokens" and ctx_used is not None and ctx_limit is not None:
+                used_str = _fmt_tokens(ctx_used)
+                limit_str = _fmt_tokens(ctx_limit)
+                label = f"{used_str}/{limit_str}"
             else:
-                parts.append(f"Context {ctx_bar} {ctx_pct:.0f}%")
+                label = f"{ctx_pct:.0f}%"
+
+            if layout == "compact":
+                parts.append(f"C {ctx_bar} {label}")
+            elif layout == "minimal":
+                parts.append(f"{ctx_bar} {label}")
+            elif layout == "percent-first":
+                parts.append(f"{label} {ctx_bar}")
+            else:
+                parts.append(f"Context {ctx_bar} {label}")
 
     # Plan name (hidden in minimal layout)
     if layout != "minimal" and show.get("plan", True) and plan:
@@ -1872,6 +1902,8 @@ def cmd_print_config():
     utf8_print(f"  Bar style: {bst} ({bst_chars[0]}{bst_chars[1]})")
     ly = config.get("layout", DEFAULT_LAYOUT)
     utf8_print(f"  Layout:    {ly}")
+    cf = config.get("context_format", "percent")
+    utf8_print(f"  Context:   {cf}")
     anim = config.get("animate", False)
     anim_state = f"{GREEN}on{RESET}" if anim else f"{RED}off{RESET}"
     utf8_print(f"  Animation:    {anim_state}  ({'rainbow always moving' if anim else 'static'})")
@@ -2094,6 +2126,25 @@ def main():
             for name, (fc, ec) in BAR_STYLES.items():
                 demo = f"{GREEN}{fc * 4}{DIM}{ec * 4}{RESET}"
                 utf8_print(f"  {name:<10} {demo}")
+        return
+
+    if "--context-format" in args:
+        idx = args.index("--context-format")
+        if idx + 1 < len(args):
+            val = args[idx + 1].lower()
+            if val not in ("percent", "tokens"):
+                utf8_print(f"Unknown format: {val}  (use percent or tokens)")
+                return
+            config = load_config()
+            config["context_format"] = val
+            save_config(config)
+            try:
+                os.remove(get_cache_path())
+            except OSError:
+                pass
+            utf8_print(f"Context format: {BOLD}{val}{RESET}")
+        else:
+            utf8_print("Usage: --context-format percent|tokens")
         return
 
     if "--layout" in args:
