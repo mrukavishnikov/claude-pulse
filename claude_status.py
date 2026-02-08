@@ -847,6 +847,29 @@ def write_cache(cache_path, line, usage=None, plan=None):
 # ---------------------------------------------------------------------------
 # Credentials & API
 # ---------------------------------------------------------------------------
+# SECURITY: OAuth tokens are ONLY sent to these Anthropic-owned domains.
+# They are never written to cache/state files, never logged, and never
+# sent anywhere else. The _authorized_request() guard enforces this.
+_TOKEN_ALLOWED_DOMAINS = frozenset({"api.anthropic.com", "console.anthropic.com"})
+
+
+def _authorized_request(url, token, headers=None, data=None, method=None, timeout=10):
+    """Make an HTTP request with an auth token, but ONLY to allowed Anthropic domains.
+
+    Raises ValueError if the URL domain is not in the allowlist.
+    This prevents tokens from ever being sent to third-party servers,
+    even if the code is modified or a URL is misconfigured.
+    """
+    from urllib.parse import urlparse
+    domain = urlparse(url).hostname
+    if domain not in _TOKEN_ALLOWED_DOMAINS:
+        raise ValueError(f"Token request blocked: {_sanitize(domain)} is not an allowed domain")
+    if headers is None:
+        headers = {}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(url, headers=headers, data=data, method=method)
+    return urllib.request.urlopen(req, timeout=timeout)
 
 def _read_credential_data():
     """Read raw credential data from file or macOS Keychain. Returns (dict, source)."""
@@ -899,13 +922,13 @@ def _refresh_oauth_token(refresh_token):
             "grant_type": "refresh_token",
             "refresh_token": refresh_token,
         }).encode("utf-8")
-        req = urllib.request.Request(
+        with _authorized_request(
             "https://console.anthropic.com/v1/oauth/token",
+            None,  # no Bearer token — this uses the refresh token in the body
             data=body,
             headers={"Content-Type": "application/json", "Accept": "application/json"},
             method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        ) as resp:
             return json.loads(resp.read(100_000))
     except Exception:
         return None
@@ -947,15 +970,11 @@ def refresh_and_retry(plan):
 
 
 def fetch_usage(token):
-    req = urllib.request.Request(
+    with _authorized_request(
         "https://api.anthropic.com/api/oauth/usage",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "anthropic-beta": "oauth-2025-04-20",
-            "Accept": "application/json",
-        },
-    )
-    with urllib.request.urlopen(req, timeout=5) as resp:
+        token,
+        headers={"anthropic-beta": "oauth-2025-04-20", "Accept": "application/json"},
+    ) as resp:
         return json.loads(resp.read(1_000_000))  # 1 MB max
 
 
