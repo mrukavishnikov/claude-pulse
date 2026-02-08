@@ -891,31 +891,6 @@ def _extract_credentials(data):
     return token, plan
 
 
-def _save_credential_data(data, source):
-    """Write updated credential data back to the original source."""
-    try:
-        if source == "file":
-            creds_path = Path.home() / ".claude" / ".credentials.json"
-            with _secure_open_write(creds_path) as f:
-                json.dump(data, f)
-        elif source == "keychain" and sys.platform == "darwin":
-            import getpass
-            username = getpass.getuser()
-            json_str = json.dumps(data)
-            subprocess.run(
-                ["/usr/bin/security", "delete-generic-password",
-                 "-s", "Claude Code-credentials", "-a", username],
-                capture_output=True, timeout=5,
-            )
-            subprocess.run(
-                ["/usr/bin/security", "add-generic-password",
-                 "-s", "Claude Code-credentials", "-a", username,
-                 "-w", json_str],
-                capture_output=True, timeout=5,
-            )
-    except Exception:
-        pass  # best-effort — Claude Code will overwrite on next login anyway
-
 
 def _refresh_oauth_token(refresh_token):
     """Use refresh token to obtain a new access token. Returns new token data or None."""
@@ -966,16 +941,8 @@ def refresh_and_retry(plan):
     if not token_data or "access_token" not in token_data:
         return None, plan
 
-    # Update credential data with new token
-    oauth["accessToken"] = token_data["access_token"]
-    if "refresh_token" in token_data:
-        oauth["refreshToken"] = token_data["refresh_token"]
-    if "expires_in" in token_data:
-        expires_at = datetime.now(timezone.utc) + timedelta(seconds=token_data["expires_in"])
-        oauth["expiresAt"] = expires_at.isoformat()
-    data["claudeAiOauth"] = oauth
-    _save_credential_data(data, source)
-
+    # Return refreshed token in-memory only — don't write back to
+    # credential store to avoid race conditions with Claude Code
     return token_data["access_token"], plan
 
 
