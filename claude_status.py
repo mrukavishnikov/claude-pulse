@@ -15,6 +15,7 @@ import urllib.request
 import urllib.error
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 DEFAULT_CACHE_TTL = 60
 BAR_SIZES = {"small": 4, "medium": 8, "large": 12}
@@ -250,8 +251,14 @@ def rainbow_colorize(text, color_all=True, shimmer=True):
         # Handle ANSI escape sequences
         if text[i] == "\033":
             j = i
-            while j < len(text) and text[j] != "m":
+            while j < len(text) and j - i < 25 and text[j] != "m":
                 j += 1
+            if j >= len(text) or text[j] != "m":
+                # Malformed escape — treat \033 as regular character
+                result.append(text[i])
+                i += 1
+                visible_idx += 1
+                continue
             seq = text[i : j + 1]
 
             if color_all:
@@ -347,6 +354,26 @@ def _secure_open_write(filepath):
     return os.fdopen(fd, "w", encoding="utf-8")
 
 
+def _atomic_json_write(filepath, data, indent=2):
+    """Atomically write JSON with 0o600 permissions on Unix.
+
+    Writes to a .tmp sibling first, then uses os.replace() for an atomic swap.
+    Cleans up the temp file on failure.
+    """
+    filepath = Path(filepath)
+    tmp_path = filepath.with_suffix(".tmp")
+    try:
+        with _secure_open_write(tmp_path) as f:
+            json.dump(data, f, indent=indent)
+        os.replace(str(tmp_path), str(filepath))
+    except BaseException:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+
+
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
@@ -401,8 +428,7 @@ def save_config(config):
     config_path = get_config_path()
     # Only save user-facing keys, not internal ones
     save_data = {k: v for k, v in config.items() if not k.startswith("_")}
-    with _secure_open_write(config_path) as f:
-        json.dump(save_data, f, indent=2)
+    _atomic_json_write(config_path, save_data)
 
 
 def _cleanup_hooks():
@@ -446,8 +472,7 @@ def _cleanup_hooks():
             changed = True
 
     if changed:
-        with _secure_open_write(settings_path) as f:
-            json.dump(settings, f, indent=2)
+        _atomic_json_write(settings_path, settings)
 
     try:
         with _secure_open_write(marker) as f:
@@ -513,7 +538,10 @@ def get_remote_commit():
             "User-Agent": "claude-pulse-update-checker",
         })
         with urllib.request.urlopen(req, timeout=3) as resp:
-            return resp.read(1024).decode().strip()  # SHA is ~40 bytes
+            sha = resp.read(1024).decode().strip()
+        if re.fullmatch(r'[0-9a-f]{40}', sha):
+            return sha
+        return None  # not a valid SHA — rate-limited, error page, etc.
     except Exception:
         return None
 
@@ -675,7 +703,8 @@ def _fetch_remote_version():
             for raw_line in resp:
                 line = raw_line.decode("utf-8", errors="replace")
                 if line.startswith("VERSION"):
-                    return line.split('"')[1]
+                    version = line.split('"')[1]
+                    return re.sub(r'[^a-zA-Z0-9.\-]', '', version) or None
     except Exception:
         pass
     return None
@@ -703,8 +732,12 @@ def cmd_update():
             cwd=str(repo_dir),
         )
         origin_url = origin_result.stdout.strip().lower() if origin_result.returncode == 0 else ""
-        expected_paths = [GITHUB_REPO.lower(), GITHUB_REPO.lower() + ".git"]
-        if not any(origin_url.endswith(p) for p in expected_paths):
+        repo_lower = GITHUB_REPO.lower()
+        expected_suffixes = [
+            "/" + repo_lower, "/" + repo_lower + ".git",
+            ":" + repo_lower, ":" + repo_lower + ".git",  # SSH git@github.com:user/repo
+        ]
+        if not any(origin_url.endswith(s) for s in expected_suffixes):
             utf8_print(f"  {RED}Origin URL does not match expected repository.{RESET}")
             utf8_print(f"  Expected: {GITHUB_REPO}")
             utf8_print(f"  Got:      {_sanitize(origin_url)}")
@@ -764,15 +797,16 @@ def cmd_update():
             post_pull_head = get_local_commit()
             if post_pull_head and post_pull_head != remote:
                 utf8_print(f"  {RED}Integrity check failed: HEAD after pull ({post_pull_head[:8]}) does not match expected remote ({remote[:8]}).{RESET}")
-                utf8_print(f"  Rolling back to previous commit ({pre_pull_commit[:8]})...")
-                try:
-                    subprocess.run(
-                        [_GIT_PATH, "reset", "--hard", pre_pull_commit],
-                        capture_output=True, text=True, timeout=10,
-                        cwd=str(repo_dir),
-                    )
-                except Exception:
-                    pass
+                if pre_pull_commit:
+                    utf8_print(f"  Rolling back to previous commit ({pre_pull_commit[:8]})...")
+                    try:
+                        subprocess.run(
+                            [_GIT_PATH, "reset", "--hard", pre_pull_commit],
+                            capture_output=True, text=True, timeout=10,
+                            cwd=str(repo_dir),
+                        )
+                    except Exception:
+                        pass
                 utf8_print(f"  {YELLOW}Update aborted. Please try again or re-clone the repository.{RESET}")
                 return
             # Read the new version from the updated file on disk
@@ -853,23 +887,37 @@ def write_cache(cache_path, line, usage=None, plan=None):
 _TOKEN_ALLOWED_DOMAINS = frozenset({"api.anthropic.com", "console.anthropic.com"})
 
 
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Block HTTP redirects to prevent tokens from leaking to third-party domains."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        target_domain = urlparse(newurl).hostname
+        if target_domain not in _TOKEN_ALLOWED_DOMAINS:
+            raise urllib.error.HTTPError(
+                newurl, code, f"Redirect to non-allowed domain blocked", headers, fp
+            )
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_safe_opener = urllib.request.build_opener(_NoRedirectHandler)
+
+
 def _authorized_request(url, token, headers=None, data=None, method=None, timeout=10):
     """Make an HTTP request with an auth token, but ONLY to allowed Anthropic domains.
 
     Raises ValueError if the URL domain is not in the allowlist.
     This prevents tokens from ever being sent to third-party servers,
     even if the code is modified or a URL is misconfigured.
+    Redirects to non-allowed domains are blocked to prevent token exfiltration.
     """
-    from urllib.parse import urlparse
     domain = urlparse(url).hostname
     if domain not in _TOKEN_ALLOWED_DOMAINS:
         raise ValueError(f"Token request blocked: {_sanitize(domain)} is not an allowed domain")
-    if headers is None:
-        headers = {}
+    hdrs = dict(headers) if headers else {}
     if token:
-        headers["Authorization"] = f"Bearer {token}"
-    req = urllib.request.Request(url, headers=headers, data=data, method=method)
-    return urllib.request.urlopen(req, timeout=timeout)
+        hdrs["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(url, headers=hdrs, data=data, method=method)
+    return _safe_opener.open(req, timeout=timeout)
 
 def _read_credential_data():
     """Read raw credential data from file or macOS Keychain. Returns (dict, source)."""
@@ -1131,9 +1179,10 @@ def _append_history(usage):
     now = time.time()
     samples.append({"t": now, "s": session_pct, "w": weekly_pct})
 
-    # Prune entries older than 24 hours
+    # Prune entries older than 24 hours and cap entry count
     cutoff = now - HISTORY_MAX_AGE
     samples = [s for s in samples if s.get("t", 0) > cutoff]
+    samples = samples[-2000:]  # prevent unbounded growth
 
     try:
         with _secure_open_write(_get_history_path()) as f:
@@ -1877,8 +1926,7 @@ def install_status_line():
     # Use --install-hooks for animate-while-working mode
 
     _secure_mkdir(settings_path.parent)
-    with _secure_open_write(settings_path) as f:
-        json.dump(settings, f, indent=2)
+    _atomic_json_write(settings_path, settings)
 
     utf8_print(f"Installed status line to {settings_path}")
     utf8_print(f"Command: {python_cmd} \"{script_path}\"")
@@ -2556,8 +2604,7 @@ def main():
     if stdin_ctx:
         persisted.update(stdin_ctx)
         try:
-            with _secure_open_write(stdin_ctx_path) as f:
-                json.dump(persisted, f)
+            _atomic_json_write(stdin_ctx_path, persisted, indent=None)
         except OSError:
             pass
     stdin_ctx = persisted
